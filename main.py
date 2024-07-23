@@ -24,8 +24,10 @@ ds1307 = DS1307(addr=0x68, i2c=rtc_clock)
 
 # Setup the display to print everything to!
 display = I2C(1, scl=Pin(3), sda=Pin(2), freq=800000)
-lcd = I2cLcd(display, 0x27, 2, 16)    
+lcd = I2cLcd(display, 0x27, 2, 16)
 
+lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
+0x00,0x00,0x00,0x00]))
 
 # get time! THE TIME!
 # formatted as str so I can directly display
@@ -88,7 +90,7 @@ while True:
 
   while update_count < 50:
     lcd.move_to(0,0)
-    lcd.putstr("32°c  50%")
+    lcd.putstr("32{}c  50%".format(chr(1)))
     lcd.move_to(0,1)
     lcd.putstr("Partly Cloudly")
 
