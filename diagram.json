@@ -18,6 +18,13 @@
       "left": 198.8,
       "rotate": 270,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": 208,
+      "left": 341.6,
+      "attrs": { "pins": "i2c" }
     }
   ],
   "connections": [
@@ -25,15 +32,17 @@
     [ "pico:3V3", "bb1:bp.1", "red", [ "h30", "v134.4" ] ],
     [ "bb1:bp.10", "bb1:13b.j", "red", [ "v0" ] ],
     [ "bb1:bn.9", "bb1:12b.j", "black", [ "v0" ] ],
-    [ "bb1:bp.2", "bb1:4b.j", "red", [ "v0" ] ],
-    [ "bb1:bn.5", "bb1:7b.j", "black", [ "v0" ] ],
+    [ "pico:GP8", "rtc1:SDA", "green", [ "h0" ] ],
+    [ "pico:GP9", "rtc1:SCL", "green", [ "h0" ] ],
+    [ "bb1:bn.19", "lcd1:GND", "black", [ "v0" ] ],
     [ "rtc1:GND", "bb1:12b.h", "", [ "$bb" ] ],
     [ "rtc1:5V", "bb1:13b.h", "", [ "$bb" ] ],
     [ "rtc1:SDA", "bb1:14b.h", "", [ "$bb" ] ],
     [ "rtc1:SCL", "bb1:15b.h", "", [ "$bb" ] ],
     [ "rtc1:SQW", "bb1:16b.h", "", [ "$bb" ] ],
-    [ "rtc1:SDA", "pico:GP21", "green", [ "v0" ] ],
-    [ "rtc1:SCL", "pico:GP20", "green", [ "v0" ] ]
+    [ "bb1:bp.18", "lcd1:VCC", "red", [ "v0" ] ],
+    [ "pico:GP2", "lcd1:SDA", "green", [ "h-19.2", "v172.8", "h336", "v38.2" ] ],
+    [ "lcd1:SCL", "pico:GP3", "green", [ "h-38.4", "v-38.1", "h-316.8", "v-172.8" ] ]
   ],
   "dependencies": {}
 }
