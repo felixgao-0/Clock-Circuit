@@ -38,9 +38,10 @@ def get_time():
     hour = ds1307.hour
     period = "AM"
 
-  return "{:02d}:{:02d} {}".format(
+  return "{:02d}:{:02d}:{:02d} {}".format(
     hour,
     ds1307.minute,
+    ds1307.second,
     period
   )
 
@@ -60,17 +61,13 @@ last_time = None
 
 update_count = 0
 while True:
-  if update_count >= 50:
-    update_count = 0
+  update_count = 0
+  lcd.clear()
+  lcd.putstr(get_date())
+  lcd.move_to(0,1)
+  lcd.putstr(get_time())
 
-    lcd.clear()
-    lcd.putstr("20c - 40%")
-    lcd.move_to(0,1)
-    lcd.putstr("Sunny")
-  else:
-    update_count += 1
-    
-    lcd.clear()
+  while update_count < 50:
     current_date = get_date()
     if current_date != last_date:
       lcd.move_to(0,0)
@@ -83,4 +80,17 @@ while True:
       lcd.putstr(current_time)
       last_time = current_time
 
-  sleep(0.2)
+    update_count += 1
+    sleep(0.2)
+    
+  update_count = 0
+  lcd.clear()
+
+  while update_count < 50:
+    lcd.move_to(0,0)
+    lcd.putstr("32°c  50%")
+    lcd.move_to(0,1)
+    lcd.putstr("Partly Cloudly")
+
+    update_count += 1
+    sleep(0.2)
