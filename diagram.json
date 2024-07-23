@@ -18,13 +18,6 @@
       "left": 198.8,
       "rotate": 270,
       "attrs": {}
-    },
-    {
-      "type": "wokwi-dht22",
-      "id": "dht1",
-      "top": 29.1,
-      "left": 129,
-      "attrs": { "temperature": "49.8" }
     }
   ],
   "connections": [
@@ -39,11 +32,8 @@
     [ "rtc1:SDA", "bb1:14b.h", "", [ "$bb" ] ],
     [ "rtc1:SCL", "bb1:15b.h", "", [ "$bb" ] ],
     [ "rtc1:SQW", "bb1:16b.h", "", [ "$bb" ] ],
-    [ "dht1:VCC", "bb1:4b.h", "", [ "$bb" ] ],
-    [ "dht1:SDA", "bb1:5b.h", "", [ "$bb" ] ],
-    [ "dht1:NC", "bb1:6b.h", "", [ "$bb" ] ],
-    [ "dht1:GND", "bb1:7b.h", "", [ "$bb" ] ],
-    [ "bb1:5b.i", "pico:GP18", "green", [ "v0" ] ]
+    [ "rtc1:SDA", "pico:GP21", "green", [ "v0" ] ],
+    [ "rtc1:SCL", "pico:GP20", "green", [ "v0" ] ]
   ],
   "dependencies": {}
 }
