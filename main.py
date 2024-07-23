@@ -58,21 +58,29 @@ last_date = None
 last_time = None
 
 
-
+update_count = 0
 while True:
-  if get_date() != last_date:
-    print(get_date())
-    lcd.move_to(0,0)
-    lcd.putstr(get_date())
-    last_date = get_date()
-  
-  if get_time() != last_time:
-    print(get_time())
+  if update_count >= 50:
+    update_count = 0
+
+    lcd.clear()
+    lcd.putstr("20c - 40%")
     lcd.move_to(0,1)
-    lcd.putstr(get_time())
-    last_time = get_time()
+    lcd.putstr("Sunny")
+  else:
+    update_count += 1
+    
+    lcd.clear()
+    current_date = get_date()
+    if current_date != last_date:
+      lcd.move_to(0,0)
+      lcd.putstr(current_date)
+      last_date = current_date
+  
+    current_time = get_time()
+    if current_time != last_time:
+      lcd.move_to(0,1)
+      lcd.putstr(current_time)
+      last_time = current_time
 
-  #oled.text("20c - 40%", 0, 20)
-
-  #oled.show()
-  sleep(0.1)
+  sleep(0.2)
