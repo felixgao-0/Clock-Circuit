@@ -56,43 +56,42 @@ def get_date():
     ds1307.year
   )
 
-
-last_date = None
 last_time = None
+last_date = None
 
-
-update_count = 0
-while True:
-  update_count = 0
-  lcd.clear()
-  lcd.putstr(get_date())
+def display_time():
+  last_time = get_time()
   lcd.move_to(0,1)
-  lcd.putstr(get_time())
+  lcd.putstr(last_time)
 
-  while update_count < 50:
+def display_date():
+  last_date = get_date()
+  lcd.move_to(0,0)
+  lcd.putstr(last_date)
+
+while True:
+  lcd.clear()
+
+  display_time()
+  display_date()
+
+  for _ in range(50):
     current_date = get_date()
     if current_date != last_date:
-      lcd.move_to(0,0)
-      lcd.putstr(current_date)
-      last_date = current_date
+      display_date()
   
     current_time = get_time()
     if current_time != last_time:
-      lcd.move_to(0,1)
-      lcd.putstr(current_time)
-      last_time = current_time
+      display_time()
 
-    update_count += 1
-    sleep(0.2)
-    
-  update_count = 0
+    sleep(0.1)
+
   lcd.clear()
 
-  while update_count < 50:
-    lcd.move_to(0,0)
-    lcd.putstr("32{}c  50%".format(chr(1)))
-    lcd.move_to(0,1)
-    lcd.putstr("Partly Cloudly")
+  lcd.move_to(0,0)
+  lcd.putstr("32{}c  50%".format(chr(1)))
+  lcd.move_to(0,1)
+  lcd.putstr("Partly Cloudly")
 
-    update_count += 1
-    sleep(0.2)
+  for _ in range(50):
+    sleep(0.1)
