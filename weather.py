@@ -15,15 +15,45 @@ from timing import timeit
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
 
-weather_str = None  # <= TODO: Weather info goes there
+weather_str = {}  # <= TODO: Weather info goes there
 
 # Wifi network password here!
 ssid = "Wokwi-GUEST"
 pw = ''
 # End network password stuff
 
-
 url = "https://api.open-meteo.com/v1/forecast?latitude=43.7001&longitude=-79.4163&current=precipitation,weather_code&timezone=America%2FNew_York&forecast_days=1"
+
+code_names = weather_codes = {
+    "0": "Clear Sky",
+    "1": "Mainly Clear",
+    "2": "Partly Cloudy",
+    "3": "Overcast",
+    "45": "Fog",
+    "48": "Rime fog",
+    "51": "Light Drizzle",
+    "53": "Moderate Drizzle",
+    "55": "Dense Drizzle",
+    "56": "Light Frzing Drzle",
+    "57": "Dense Frzing Drzle",
+    "61": "Slight Rain",
+    "63": "Moderate Rain",
+    "65": "Heavy Rain",
+    "66": "Light Frzing Rain",
+    "67": "Hvy Frzing Rain",
+    "71": "Slight Snow",
+    "73": "Moderate Snow",
+    "75": "Heavy Snow",
+    "77": "Snow Grains",
+    "80": "Slight Rain Showers",
+    "81": "Moderate Rain Showers",
+    "82": "Violent Rain showers",
+    "85": "Slight Snow showers",
+    "86": "Heavy Snow showers",
+    "95": "Slight/Moderate T-storm",
+    "96": "T-storm w/ slight hail",
+    "99": "T-storm w/ heavy hail"
+}
 
 
 @timeit
@@ -51,7 +81,11 @@ async def fetch_weather():
   print('Starting request...')
   response = requests.get(url)
   if response.status_code == 200:
-    weather_str = response.json()
+    data = response.json()["current"]
+
+    weather_str["weather_code"] = code_names[data["weather_code"]]
+    weather_str["precipitation"] = data["precipitation"]
+
     response.close()
   else:
     print("aw no HTTP 200 - {}".format(response.text))
