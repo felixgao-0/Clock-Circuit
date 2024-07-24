@@ -1,15 +1,15 @@
 {
   "version": 1,
-  "author": "Anonymous maker",
+  "author": "Felix Gao",
   "editor": "wokwi",
   "parts": [
     { "type": "wokwi-breadboard", "id": "bb1", "top": 6.6, "left": 89.2, "attrs": {} },
     {
-      "type": "wokwi-pi-pico",
+      "type": "board-pi-pico-w",
       "id": "pico",
       "top": 6.45,
       "left": -6,
-      "attrs": { "env": "micropython-20231227-v1.22.0" }
+      "attrs": { "env": "micropython-20230426-v1.20.0" }
     },
     {
       "type": "wokwi-ds1307",
@@ -35,14 +35,14 @@
     [ "pico:GP8", "rtc1:SDA", "green", [ "h0" ] ],
     [ "pico:GP9", "rtc1:SCL", "green", [ "h0" ] ],
     [ "bb1:bn.19", "lcd1:GND", "black", [ "v0" ] ],
+    [ "bb1:bp.18", "lcd1:VCC", "red", [ "v0" ] ],
+    [ "pico:GP2", "lcd1:SDA", "green", [ "h-19.2", "v172.8", "h336", "v38.2" ] ],
+    [ "lcd1:SCL", "pico:GP3", "green", [ "h-38.4", "v-38.1", "h-316.8", "v-172.8" ] ],
     [ "rtc1:GND", "bb1:12b.h", "", [ "$bb" ] ],
     [ "rtc1:5V", "bb1:13b.h", "", [ "$bb" ] ],
     [ "rtc1:SDA", "bb1:14b.h", "", [ "$bb" ] ],
     [ "rtc1:SCL", "bb1:15b.h", "", [ "$bb" ] ],
-    [ "rtc1:SQW", "bb1:16b.h", "", [ "$bb" ] ],
-    [ "bb1:bp.18", "lcd1:VCC", "red", [ "v0" ] ],
-    [ "pico:GP2", "lcd1:SDA", "green", [ "h-19.2", "v172.8", "h336", "v38.2" ] ],
-    [ "lcd1:SCL", "pico:GP3", "green", [ "h-38.4", "v-38.1", "h-316.8", "v-172.8" ] ]
+    [ "rtc1:SQW", "bb1:16b.h", "", [ "$bb" ] ]
   ],
   "dependencies": {}
 }
