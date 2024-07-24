@@ -6,7 +6,12 @@ from ds1307 import DS1307
 from lcd_api import LcdApi
 from pico_i2c_lcd import I2cLcd
 
+#import weather
+
 sleep(0.1) # Wait for USB to become ready
+
+#weather.connect_wifi()
+#weather.fetch_weather()
 
 month_name = ["", "Jan", "Feb", "Mar", "Apr",
               "May", "Jun", "Jul","Aug", "Sept",
@@ -56,42 +61,25 @@ def get_date():
     ds1307.year
   )
 
-last_time = None
-last_date = None
-
-def display_time():
-  last_time = get_time()
-  lcd.move_to(0,1)
-  lcd.putstr(last_time)
-
-def display_date():
-  last_date = get_date()
-  lcd.move_to(0,0)
-  lcd.putstr(last_date)
-
 while True:
   lcd.clear()
 
-  display_time()
-  display_date()
-
   for _ in range(50):
-    current_date = get_date()
-    if current_date != last_date:
-      display_date()
-  
-    current_time = get_time()
-    if current_time != last_time:
-      display_time()
+    lcd.move_to(0,0)
+    lcd.putstr(get_date())
+    lcd.move_to(0,1)
+    lcd.putstr(get_time())
 
-    sleep(0.1)
+    sleep(0.2)
 
   lcd.clear()
+
+  #weather_data = weather.get_weather()
 
   lcd.move_to(0,0)
   lcd.putstr("32{}c  50%".format(chr(1)))
   lcd.move_to(0,1)
-  lcd.putstr("Partly Cloudly")
+  lcd.putstr("hi")
 
   for _ in range(50):
-    sleep(0.1)
+    sleep(0.2)
