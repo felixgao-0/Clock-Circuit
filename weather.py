@@ -1,38 +1,63 @@
 # A custom written api to fetch the weather easily
+# Thanks to https://wokwi.com/projects/365324864723088385
+# for the help w/ setting up the wifi simulator!
 
-#import urequests
-
-
-url = "https://api.open-meteo.com/v1/forecast"
-params = {
-	"latitude": 52.52,
-	"longitude": 13.41,
-	"current": ["temperature_2m", "relative_humidity_2m", "weather_code"],
-	"timezone": "America/New_York",
-	"forecast_days": 1
-}
+import rp2
+import network
+import ubinascii
+import machine
+import urequests as requests
+import time
 
 
-def http_get(url):
-    import socket
-    _, _, host, path = url.split('/', 3)
-    addr = socket.getaddrinfo(host, 80)[0][-1]
-    s = socket.socket()
-    s.connect(addr)
-    s.send(bytes('GET /%s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host), 'utf8'))
-    while True:
-        data = s.recv(100)
-        if data:
-            print(str(data, 'utf8'), end='')
-        else:
-            break
-    s.close()
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
 
+mac = ubinascii.hexlify(network.WLAN().config('mac'),':').decode()
+print('mac = {}'.format(mac))
 
 weather_str = None  # <= TODO: Weather info goes there
 
-def get_weather():
-  return weather_str
+# Wifi network password here!
+ssid = "Wokwi-GUEST"
+pw = ''
+# End network password stuff
+
+
+url = "https://api.open-meteo.com/v1/forecast?latitude=43&longitude=-79&current=temperature_2m,relative_humidity_2m,weather_code&timezone=America%2FNew_York"
+
+def wifi_connected():
+    wlan_status = wlan.status()
+    if wlan_status != 3:
+        return False
+    else:
+        return True
+
+attempt_count = 0
+def connect_wifi():
+  while True:
+    if wifi_connected():
+      status = wlan.ifconfig()
+      print('ip = ' + status[0])
+      break
+    else:
+      print('Attempting to connect. Attempt #{}.'.format(attempt_count))
+      attempt_count += 1
+      led.off()
+      wlan.connect(ssid, pw)
+      time.sleep(3)
+
+
+connect_wifi()
+
 
 def fetch_weather():
-  http_get(url)
+  if not wifi_connected():
+    connect_wifi()
+
+  response = requests.get(url)
+  print(response)
+  response.close()
+
+def get_weather():
+  return weather_str
