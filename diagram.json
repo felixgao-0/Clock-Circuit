@@ -11,14 +11,7 @@
       "left": -6,
       "attrs": { "env": "micropython-20230426-v1.20.0" }
     },
-    {
-      "type": "wokwi-ds1307",
-      "id": "rtc1",
-      "top": 62.5,
-      "left": 198.8,
-      "rotate": 270,
-      "attrs": {}
-    },
+    { "type": "wokwi-ds1307", "id": "rtc1", "top": 62.5, "left": 122, "rotate": 270, "attrs": {} },
     {
       "type": "wokwi-lcd1602",
       "id": "lcd1",
@@ -30,19 +23,19 @@
   "connections": [
     [ "pico:GND.7", "bb1:bn.1", "black", [ "h20.4", "v115.2" ] ],
     [ "pico:3V3", "bb1:bp.1", "red", [ "h30", "v134.4" ] ],
-    [ "bb1:bp.10", "bb1:13b.j", "red", [ "v0" ] ],
-    [ "bb1:bn.9", "bb1:12b.j", "black", [ "v0" ] ],
-    [ "pico:GP8", "rtc1:SDA", "green", [ "h0" ] ],
-    [ "pico:GP9", "rtc1:SCL", "green", [ "h0" ] ],
+    [ "pico:GP8", "rtc1:SDA", "green", [ "h-19.25", "v-124.9", "h259.5" ] ],
+    [ "pico:GP9", "rtc1:SCL", "green", [ "h-28.85", "v-124.9", "h278.6" ] ],
     [ "bb1:bn.19", "lcd1:GND", "black", [ "v0" ] ],
     [ "bb1:bp.18", "lcd1:VCC", "red", [ "v0" ] ],
-    [ "pico:GP2", "lcd1:SDA", "green", [ "h-19.2", "v172.8", "h336", "v38.2" ] ],
-    [ "lcd1:SCL", "pico:GP3", "green", [ "h-38.4", "v-38.1", "h-316.8", "v-172.8" ] ],
-    [ "rtc1:GND", "bb1:12b.h", "", [ "$bb" ] ],
-    [ "rtc1:5V", "bb1:13b.h", "", [ "$bb" ] ],
-    [ "rtc1:SDA", "bb1:14b.h", "", [ "$bb" ] ],
-    [ "rtc1:SCL", "bb1:15b.h", "", [ "$bb" ] ],
-    [ "rtc1:SQW", "bb1:16b.h", "", [ "$bb" ] ]
+    [ "pico:GP2", "lcd1:SDA", "green", [ "h-57.65", "v172.8", "h374.45", "v38.1" ] ],
+    [ "lcd1:SCL", "pico:GP3", "green", [ "h-38.4", "v-38.1", "h-355.2", "v-172.7" ] ],
+    [ "rtc1:GND", "bb1:4b.h", "", [ "$bb" ] ],
+    [ "rtc1:5V", "bb1:5b.h", "", [ "$bb" ] ],
+    [ "rtc1:SDA", "bb1:6b.h", "", [ "$bb" ] ],
+    [ "rtc1:SCL", "bb1:7b.h", "", [ "$bb" ] ],
+    [ "rtc1:SQW", "bb1:8b.h", "", [ "$bb" ] ],
+    [ "bb1:bp.3", "bb1:5b.j", "red", [ "v0" ] ],
+    [ "bb1:bn.2", "bb1:4b.j", "black", [ "v0" ] ]
   ],
   "dependencies": {}
 }
