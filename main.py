@@ -46,11 +46,25 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 #pi_time[5] = 50
 #ds1307.datetime = tuple(pi_time) # It expects a tuple type lol
 
+def only_ones_changed(prev_time: int, new_time: int):
+    if not prev_time: # Handle nonetypes
+        return False
+
+    prev_tens_place = prev_time // 10
+    prev_ones_place = prev_time % 10
+    new_tens_place = new_time // 10
+    new_ones_place = new_time % 10
+
+    if prev_tens_place == new_tens_place and prev_ones_place != new_ones_place:
+        return True
+    elif prev_tens_place != new_tens_place and prev_ones_place != new_ones_place:
+        return False
+    else:
+        raise ValueError("Huh? Didn't expect this to happen")
 
 # get time! THE TIME!
 # formatted as str so I can directly display
 # convert 24hr time => 12 hr time
-
 def get_hour(dt_obj, get_period=False):
     hour = dt_obj[3]
     period = "AM"
@@ -72,53 +86,52 @@ def get_hour(dt_obj, get_period=False):
 def get_date(dt_obj):
   return f"{month_name[dt_obj[1]]} {dt_obj[2]}, {dt_obj[0]}"
 
-dt_obj = ds1307.datetime
-
-lcd.move_to(0,0)
-lcd.putstr(get_date(dt_obj))
-
-lcd.move_to(0,1)
-lcd.putstr(get_hour(dt_obj, get_period=False))
-lcd.move_to(2,1)
-lcd.putstr(f":{dt_obj[4]:02d}")
-lcd.move_to(5,1)
-lcd.putstr(f":{dt_obj[5]:02d}")
-lcd.move_to(9,1)
-lcd.putstr(get_hour(dt_obj, get_period=True))
+previous_second = None
 
 while True:
-
+    lcd.clear()
     dt_obj = ds1307.datetime
 
-    if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
-        lcd.move_to(0,0)
-        lcd.putstr(get_date(dt_obj))
+    lcd.move_to(0,0)
+    lcd.putstr(get_date(dt_obj))
+
+    lcd.move_to(0,1)
+    lcd.putstr(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
+
+    while ds1307.second % 10 != 0: # Loop for 10 seconds synced at 10 seconds
+        dt_obj = ds1307.datetime # Save dt object to avoid too many i2c calls
+        if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
+            lcd.move_to(0,0)
+            lcd.putstr(get_date(dt_obj))
     
 
-    if dt_obj[4] == 0: # Update hour if minutes at 00
-        lcd.move_to(0,1)
-        lcd.putstr(get_hour(dt_obj, get_period=False))
-        lcd.move_to(9,1)
-        lcd.putstr(get_hour(dt_obj, get_period=True))
+        if dt_obj[4] == 0: # Update hour if minutes at 00
+            lcd.move_to(0,1)
+            lcd.putstr(get_hour(dt_obj, get_period=False))
+            lcd.move_to(9,1)
+            lcd.putstr(get_hour(dt_obj, get_period=True))
 
 
-    if dt_obj[5] == 0: # Update minute if seconds at 00
-        lcd.move_to(2,1)
-        lcd.putstr(f":{dt_obj[4]:02d}")
+        if dt_obj[5] == 0: # Update minute if seconds at 00
+            lcd.move_to(3,1)
+            lcd.putstr(f"{dt_obj[4]:02d}")
 
-    lcd.move_to(5,1)
-    lcd.putstr(f":{dt_obj[5]:02d}")
+        if previous_second != dt_obj[5]:
+            if only_ones_changed(previous_second, dt_obj[5]):
+                lcd.move_to(7,1)
+                lcd.putstr(str(dt_obj[5] % 10))
+            else:
+                lcd.move_to(6,1)
+                lcd.putstr(f"{dt_obj[5]:02d}")
+        previous_second = dt_obj[5]
 
+        sleep(0.2)
 
-    sleep(0.2)
+    lcd.clear()
 
-"""
-  lcd.clear()
+    lcd.move_to(0,0)
+    lcd.putstr(f"32{chr(1)}c  50%")
+    lcd.move_to(0,1)
+    lcd.putstr("Partly Cloudly")
 
-  lcd.move_to(0,0)
-  lcd.putstr(f"32{chr(1)}c  50%")
-  lcd.move_to(0,1)
-  lcd.putstr("Partly Cloudly")
-
-  sleep(10)
-"""
+    sleep(10)
