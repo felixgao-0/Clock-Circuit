@@ -22,11 +22,6 @@ month_name = ["", "Jan", "Feb", "Mar", "Apr",
               "May", "Jun", "Jul","Aug", "Sept",
               "Oct", "Nov", "Dec"]
 
-# As far as I understand the pi should get accurate
-# time from a time server, from which it will set it
-# but for in the simulator I'll comment it out
-# ds1307.datetime = gmtime(time())
-
 
 # Setup RTC clock
 rtc_clock = I2C(0, scl=Pin(9), sda=Pin(8), freq=800000)
@@ -36,14 +31,28 @@ ds1307 = DS1307(addr=0x68, i2c=rtc_clock)
 display = I2C(1, scl=Pin(3), sda=Pin(2), freq=800000)
 lcd = I2cLcd(display, 0x27, 2, 16)
 
+# Define custom characters
 lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 0x00,0x00,0x00,0x00]))
+
+
+# As far as I understand the pi should get accurate
+# time from a time server, from which it will set it
+
+# Convert to different times for testing lol
+#pi_time = list(gmtime(time()))  # convert to list for editing
+#pi_time[3] = 10
+#pi_time[4] = 59
+#pi_time[5] = 50
+#ds1307.datetime = tuple(pi_time) # It expects a tuple type lol
+
 
 # get time! THE TIME!
 # formatted as str so I can directly display
 # convert 24hr time => 12 hr time
-def get_time():
-    hour = ds1307.hour
+
+def get_hour(dt_obj, get_period=False):
+    hour = dt_obj[3]
     period = "AM"
 
     if hour > 12:
@@ -54,30 +63,56 @@ def get_time():
     elif hour == 12:
         period = "PM"
 
-    return f"{hour:02d}:{ds1307.minute:02d}:{ds1307.second:02d} {period}"
+    if get_period:
+        return period
+    else:
+        return f"{hour:02d}"
 
 
-def get_date():
-  return f"{month_name[ds1307.month]} {ds1307.day}, {ds1307.year}"
+def get_date(dt_obj):
+  return f"{month_name[dt_obj[1]]} {dt_obj[2]}, {dt_obj[0]}"
+
+dt_obj = ds1307.datetime
+
+lcd.move_to(0,0)
+lcd.putstr(get_date(dt_obj))
+
+lcd.move_to(0,1)
+lcd.putstr(get_hour(dt_obj, get_period=False))
+lcd.move_to(2,1)
+lcd.putstr(f":{dt_obj[4]:02d}")
+lcd.move_to(5,1)
+lcd.putstr(f":{dt_obj[5]:02d}")
+lcd.move_to(9,1)
+lcd.putstr(get_hour(dt_obj, get_period=True))
 
 while True:
-  lcd.clear()
 
-  for _ in range(50):
-    timer = time()
-    lcd.move_to(0,0)
-    lcd.putstr(get_date())
-    if (ds1307.hour == 0) and (ds1307.minute == 0): 
-      lcd.move_to(0,0)
-      lcd.putstr(get_date())
+    dt_obj = ds1307.datetime
 
-    lcd.move_to(0,1)
-    lcd.putstr(get_time())
+    if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
+        lcd.move_to(0,0)
+        lcd.putstr(get_date(dt_obj))
+    
 
-
-    sleep(max(0, 1 - (timer - time())))
+    if dt_obj[4] == 0: # Update hour if minutes at 00
+        lcd.move_to(0,1)
+        lcd.putstr(get_hour(dt_obj, get_period=False))
+        lcd.move_to(9,1)
+        lcd.putstr(get_hour(dt_obj, get_period=True))
 
 
+    if dt_obj[5] == 0: # Update minute if seconds at 00
+        lcd.move_to(2,1)
+        lcd.putstr(f":{dt_obj[4]:02d}")
+
+    lcd.move_to(5,1)
+    lcd.putstr(f":{dt_obj[5]:02d}")
+
+
+    sleep(0.2)
+
+"""
   lcd.clear()
 
   lcd.move_to(0,0)
@@ -86,3 +121,4 @@ while True:
   lcd.putstr("Partly Cloudly")
 
   sleep(10)
+"""
