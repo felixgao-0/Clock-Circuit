@@ -31,6 +31,11 @@ ds1307 = DS1307(addr=0x68, i2c=rtc_clock)
 display = I2C(1, scl=Pin(3), sda=Pin(2), freq=800000)
 lcd = I2cLcd(display, 0x27, 2, 16)
 
+# Setup buttons
+alarm_btn = machine.Pin(27, machine.Pin.IN, machine.Pin.PULL_UP)
+hour_btn = machine.Pin(26, machine.Pin.IN, machine.Pin.PULL_UP)
+minute_btn = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
+
 # Define custom characters
 lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 0x00,0x00,0x00,0x00]))
@@ -88,7 +93,12 @@ def get_date(dt_obj):
 
 previous_second = None
 
+def set_alarm():
+    lcd.clear()
+
 while True:
+    previous_second = ds1307.second
+
     lcd.clear()
     dt_obj = ds1307.datetime
 
@@ -98,7 +108,7 @@ while True:
     lcd.move_to(0,1)
     lcd.putstr(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
 
-    while ds1307.second % 10 != 0: # Loop for 10 seconds synced at 10 seconds
+    while ds1307.second % 10 != 0 or ds1307.second == previous_second:
         dt_obj = ds1307.datetime # Save dt object to avoid too many i2c calls
         if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
             lcd.move_to(0,0)
@@ -125,13 +135,19 @@ while True:
                 lcd.putstr(f"{dt_obj[5]:02d}")
         previous_second = dt_obj[5]
 
+        print(alarm_btn.value())
         sleep(0.2)
 
     lcd.clear()
+    previous_second = ds1307.second
 
     lcd.move_to(0,0)
     lcd.putstr(f"32{chr(1)}c  50%")
     lcd.move_to(0,1)
     lcd.putstr("Partly Cloudly")
 
-    sleep(10)
+    previous_second = ds1307.second
+
+    while ds1307.second % 10 != 0 or ds1307.second == previous_second:
+        print(alarm_btn.value())
+        sleep(0.2)
