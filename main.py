@@ -58,9 +58,7 @@ minute_last = time.ticks_ms()
 
 alarm_config_mode = False
 
-alarm_hour = None
-alarm_minute = None
-alarm_period = None
+alarm_time = None
 
 # Pause loops when this is `True`
 halt_loop = False
@@ -68,7 +66,7 @@ halt_loop = False
 
 def button_handler(pin):
     global alarm_last, hour_last, minute_last
-    global halt_loop, alarm_config_mode, alarm_hour, alarm_minute, alarm_period
+    global halt_loop, alarm_config_mode, alarm_time
 
     if pin is alarm_btn:
         if time.ticks_diff(time.ticks_ms(), alarm_last) > 300:
@@ -83,16 +81,14 @@ def button_handler(pin):
 
                 lcd.move_to(0,1)
                 dt_obj = ds1307.datetime
-                if not alarm_hour:
-                    alarm_hour = int(get_hour(dt_obj, get_period=False))
+                if not alarm_time:
+                    alarm_time = {
+                        "hour": int(get_hour(dt_obj, get_period=False)),
+                        "minute": int(dt_obj[4]),
+                        "period": get_hour(dt_obj, get_period=True)
+                    }
 
-                if not alarm_minute:
-                    alarm_minute = int(dt_obj[4])
-                
-                if not alarm_period:
-                    alarm_period = get_hour(dt_obj, get_period=True)
-
-                lcd.putstr(f"{alarm_hour}:{alarm_minute:02d} {alarm_period}")
+                lcd.putstr(f"{alarm_time['hour']}:{alarm_time['minute']:02d} {alarm_time['period']}")
                 print('Boop, setup alarm!')
             else:
                 alarm_config_mode = False
@@ -104,17 +100,21 @@ def button_handler(pin):
         if time.ticks_diff(time.ticks_ms(), hour_last) > 300:
             if alarm_config_mode:
                 hour_last = time.ticks_ms()
-                alarm_hour += 1
+                if alarm_time["hour"] == 12:
+                    alarm_time["hour"] = 1
+                    alarm_time["period"] = "AM" if alarm_time["period"] == "PM" else "PM"
+                else:
+                    alarm_time["hour"] += 1
                 lcd.move_to(0,1)
-                lcd.putstr(f"{alarm_hour}:{alarm_minute:02d} {alarm_period}")
+                lcd.putstr(f"{alarm_time['hour']}:{alarm_time['minute']:02d} {alarm_time['period']}")
     
     elif pin is minute_btn:
         if time.ticks_diff(time.ticks_ms(), minute_last) > 300:
             if alarm_config_mode:
                 minute_last = time.ticks_ms()
-                alarm_minute += 1
+                alarm_time["minute"] += 1
                 lcd.move_to(0,1)
-                lcd.putstr(f"{alarm_hour}:{alarm_minute:02d} {alarm_period}")
+                lcd.putstr(f"{alarm_time['hour']}:{alarm_time['minute']:02d} {alarm_time['period']}")
 
 
 alarm_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
