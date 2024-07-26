@@ -1,16 +1,16 @@
-from machine import I2C, Pin, Timer
-from time import gmtime, sleep
-import time
+from machine import I2C, Pin, Timer # pylint: disable=import-error
+from time import gmtime, sleep      # pylint: disable=import-error
+import time                         # pylint: disable=import-error
 
-from timing import timeit
+from timing import timeit           # pylint: disable=import-error
 
 # Drivers for the RTC and the display!
 # Credit: https://github.com/mcauser/micropython-tinyrtc-i2c
-from ds1307 import DS1307
+from ds1307 import DS1307           # pylint: disable=import-error
 
 # Credit: https://github.com/T-622/RPI-PICO-I2C-LCD
-from lcd_api import LcdApi
-from pico_i2c_lcd import I2cLcd
+from lcd_api import LcdApi          # pylint: disable=import-error
+from pico_i2c_lcd import I2cLcd     # pylint: disable=import-error
 
 #import weather
 
@@ -33,9 +33,9 @@ display = I2C(1, scl=Pin(3), sda=Pin(2), freq=800000)
 lcd = I2cLcd(display, 0x27, 2, 16)
 
 # Setup buttons
-alarm_btn = Pin(27, Pin.IN, machine.Pin.PULL_UP)
-hour_btn = Pin(26, Pin.IN)
-minute_btn = Pin(22, Pin.IN)
+alarm_btn = Pin(22, Pin.IN, Pin.PULL_UP)
+hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
+minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
 
 # Define custom characters
 lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
@@ -93,7 +93,7 @@ def button_handler(pin):
     global alarm_last
     print("BTN!")
       
-    if time.ticks_diff(time.ticks_ms(), blue_last) > 500:
+    if time.ticks_diff(time.ticks_ms(), alarm_last) > 500:
         lcd.clear()
         lcd.putstr("hi code works?")
         alarm_last = time.ticks_ms()
@@ -144,6 +144,7 @@ while True:
         sleep(0.2)
 
     lcd.clear()
+
 
     lcd.move_to(0,0)
     lcd.putstr(f"32{chr(1)}c  50%")
