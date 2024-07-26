@@ -1,6 +1,6 @@
-from machine import I2C, Pin, Timer
-from time import gmtime, sleep
 import time
+
+from machine import I2C, Pin, Timer
 
 from timing import timeit
 
@@ -9,12 +9,11 @@ from timing import timeit
 from ds1307 import DS1307
 
 # Credit: https://github.com/T-622/RPI-PICO-I2C-LCD
-from lcd_api import LcdApi
 from pico_i2c_lcd import I2cLcd
 
 #import weather
 
-sleep(0.1) # Wait for USB to become ready
+time.sleep(0.1) # Wait for USB to become ready
 
 #weather.connect_wifi()
 #weather.fetch_weather()
@@ -32,11 +31,6 @@ ds1307 = DS1307(addr=0x68, i2c=rtc_clock)
 display = I2C(1, scl=Pin(3), sda=Pin(2), freq=800000)
 lcd = I2cLcd(display, 0x27, 2, 16)
 
-# Setup buttons
-alarm_btn = Pin(22, Pin.IN, Pin.PULL_UP)
-hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
-minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
-
 # Define custom characters
 lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 0x00,0x00,0x00,0x00]))
@@ -46,11 +40,30 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 # time from a time server, from which it will set it
 
 # Convert to different times for testing lol
-#pi_time = list(gmtime(time()))  # convert to list for editing
+#pi_time = list(time.gmtime(time.time()))  # convert to list for editing
 #pi_time[3] = 10
 #pi_time[4] = 59
 #pi_time[5] = 50
 #ds1307.datetime = tuple(pi_time) # It expects a tuple type lol
+
+
+# Setup buttons
+alarm_btn = Pin(22, Pin.IN, Pin.PULL_UP)
+hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
+minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
+
+alarm_last = time.ticks_ms()
+
+def button_handler(pin):
+    global alarm_last, alarm_btn
+      
+    if pin is alarm_btn:
+        if time.ticks_diff(time.ticks_ms(), alarm_last) > 500:
+            alarm_last = time.ticks_ms()
+            print('boop!')
+
+
+alarm_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
 
 def only_ones_changed(prev_time: int, new_time: int):
     if not prev_time: # Handle nonetypes
@@ -62,6 +75,7 @@ def only_ones_changed(prev_time: int, new_time: int):
     new_ones_place = new_time % 10
 
     return prev_tens_place == new_tens_place and prev_ones_place != new_ones_place
+
 
 # get time! THE TIME!
 # formatted as str so I can directly display
@@ -85,20 +99,7 @@ def get_hour(dt_obj, get_period=False):
 
 
 def get_date(dt_obj):
-  return f"{month_name[dt_obj[1]]} {dt_obj[2]}, {dt_obj[0]}"
-
-alarm_last = time.ticks_ms()
-
-def button_handler(pin):
-    global alarm_last
-    print("BTN!")
-      
-    if time.ticks_diff(time.ticks_ms(), alarm_last) > 500:
-        lcd.clear()
-        lcd.putstr("hi code works?")
-        alarm_last = time.ticks_ms()
-
-alarm_btn.irq(trigger=Pin.IRQ_RISING, handler=button_handler)
+    return f"{month_name[dt_obj[1]]} {dt_obj[2]}, {dt_obj[0]}"
 
 previous_second = None
 
@@ -141,7 +142,7 @@ while True:
                 lcd.putstr(f"{dt_obj[5]:02d}")
         previous_second = dt_obj[5]
 
-        sleep(0.2)
+        time.sleep(0.2)
 
     lcd.clear()
 
@@ -154,4 +155,4 @@ while True:
     previous_second = ds1307.second
 
     while ds1307.second % 10 != 0 or ds1307.second == previous_second:
-        sleep(0.2)
+        time.sleep(0.2)
