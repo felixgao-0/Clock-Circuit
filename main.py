@@ -1,16 +1,16 @@
-from machine import I2C, Pin, Timer # pylint: disable=import-error
-from time import gmtime, sleep      # pylint: disable=import-error
-import time                         # pylint: disable=import-error
+from machine import I2C, Pin, Timer
+from time import gmtime, sleep
+import time
 
-from timing import timeit           # pylint: disable=import-error
+from timing import timeit
 
 # Drivers for the RTC and the display!
 # Credit: https://github.com/mcauser/micropython-tinyrtc-i2c
-from ds1307 import DS1307           # pylint: disable=import-error
+from ds1307 import DS1307
 
 # Credit: https://github.com/T-622/RPI-PICO-I2C-LCD
-from lcd_api import LcdApi          # pylint: disable=import-error
-from pico_i2c_lcd import I2cLcd     # pylint: disable=import-error
+from lcd_api import LcdApi
+from pico_i2c_lcd import I2cLcd
 
 #import weather
 
