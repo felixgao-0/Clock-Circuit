@@ -76,6 +76,7 @@ def button_handler(pin):
             if not alarm_config_mode:
                 alarm_config_mode = True
                 halt_loop = True
+                
 
                 lcd.clear()
                 lcd.putstr("Set alarm:")
@@ -198,6 +199,14 @@ while True:
 
         while halt_loop: # Halt loop when paused
             time.sleep(0.1)
+        else:
+            dt_obj = ds1307.datetime
+            lcd.move_to(0,0)
+            lcd.putstr(get_date(dt_obj))
+
+            lcd.move_to(0,1)
+            lcd.putstr(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
+
 
         time.sleep(0.2)
 
@@ -215,7 +224,7 @@ while True:
         while halt_loop: # Halt loop when paused
             time.sleep(0.1)
 
-            # Quick bugfix: Reprint screen afterwards
+        else: # Quick bugfix: Reprint screen afterwards
             lcd.move_to(0,0)
             lcd.putstr(f"32{chr(1)}c  50%")
             lcd.move_to(0,1)
