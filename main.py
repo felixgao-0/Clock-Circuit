@@ -1,5 +1,6 @@
 from machine import I2C, Pin, Timer
-from time import gmtime, time, sleep
+from time import gmtime, sleep
+import time
 
 from timing import timeit
 
@@ -32,9 +33,9 @@ display = I2C(1, scl=Pin(3), sda=Pin(2), freq=800000)
 lcd = I2cLcd(display, 0x27, 2, 16)
 
 # Setup buttons
-alarm_btn = machine.Pin(27, machine.Pin.IN, machine.Pin.PULL_UP)
-hour_btn = machine.Pin(26, machine.Pin.IN, machine.Pin.PULL_UP)
-minute_btn = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
+alarm_btn = Pin(27, Pin.IN, machine.Pin.PULL_UP)
+hour_btn = Pin(26, Pin.IN)
+minute_btn = Pin(22, Pin.IN)
 
 # Define custom characters
 lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
@@ -60,12 +61,7 @@ def only_ones_changed(prev_time: int, new_time: int):
     new_tens_place = new_time // 10
     new_ones_place = new_time % 10
 
-    if prev_tens_place == new_tens_place and prev_ones_place != new_ones_place:
-        return True
-    elif prev_tens_place != new_tens_place and prev_ones_place != new_ones_place:
-        return False
-    else:
-        raise ValueError("Huh? Didn't expect this to happen")
+    return prev_tens_place == new_tens_place and prev_ones_place != new_ones_place
 
 # get time! THE TIME!
 # formatted as str so I can directly display
@@ -91,10 +87,20 @@ def get_hour(dt_obj, get_period=False):
 def get_date(dt_obj):
   return f"{month_name[dt_obj[1]]} {dt_obj[2]}, {dt_obj[0]}"
 
-previous_second = None
+alarm_last = time.ticks_ms()
 
-def set_alarm():
-    lcd.clear()
+def button_handler(pin):
+    global alarm_last
+    print("BTN!")
+      
+    if time.ticks_diff(time.ticks_ms(), blue_last) > 500:
+        lcd.clear()
+        lcd.putstr("hi code works?")
+        alarm_last = time.ticks_ms()
+
+alarm_btn.irq(trigger=Pin.IRQ_RISING, handler=button_handler)
+
+previous_second = None
 
 while True:
     previous_second = ds1307.second
@@ -126,7 +132,7 @@ while True:
             lcd.move_to(3,1)
             lcd.putstr(f"{dt_obj[4]:02d}")
 
-        if previous_second != dt_obj[5]:
+        if previous_second != dt_obj[5]: # Only change needed digits
             if only_ones_changed(previous_second, dt_obj[5]):
                 lcd.move_to(7,1)
                 lcd.putstr(str(dt_obj[5] % 10))
@@ -135,11 +141,9 @@ while True:
                 lcd.putstr(f"{dt_obj[5]:02d}")
         previous_second = dt_obj[5]
 
-        print(alarm_btn.value())
         sleep(0.2)
 
     lcd.clear()
-    previous_second = ds1307.second
 
     lcd.move_to(0,0)
     lcd.putstr(f"32{chr(1)}c  50%")
@@ -149,5 +153,4 @@ while True:
     previous_second = ds1307.second
 
     while ds1307.second % 10 != 0 or ds1307.second == previous_second:
-        print(alarm_btn.value())
         sleep(0.2)
