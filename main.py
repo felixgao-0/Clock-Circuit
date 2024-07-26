@@ -47,7 +47,7 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 #ds1307.datetime = tuple(pi_time) # It expects a tuple type lol
 
 
-# Setup buttons
+# Setup buttons and variables for the buttons
 alarm_btn = Pin(21, Pin.IN, Pin.PULL_UP)
 hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
 minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
@@ -56,28 +56,70 @@ alarm_last = time.ticks_ms()
 hour_last = time.ticks_ms()
 minute_last = time.ticks_ms()
 
+alarm_config_mode = False
+
+alarm_hour = None
+alarm_minute = None
+alarm_period = None
+
+# Pause loops when this is `True`
+halt_loop = False
+
+
 def button_handler(pin):
     global alarm_last, hour_last, minute_last
+    global halt_loop, alarm_config_mode, alarm_hour, alarm_minute, alarm_period
 
     if pin is alarm_btn:
         if time.ticks_diff(time.ticks_ms(), alarm_last) > 300:
             alarm_last = time.ticks_ms()
-            print('Boop, setup alarm!')
+            if not alarm_config_mode:
+                alarm_config_mode = True
+                halt_loop = True
+
+                lcd.clear()
+                lcd.putstr("Set alarm:")
+
+                lcd.move_to(0,1)
+                dt_obj = ds1307.datetime
+                if not alarm_hour:
+                    alarm_hour = int(get_hour(dt_obj, get_period=False))
+
+                if not alarm_minute:
+                    alarm_minute = int(dt_obj[4])
+                
+                if not alarm_period:
+                    alarm_period = get_hour(dt_obj, get_period=True)
+
+                lcd.putstr(f"{alarm_hour}:{alarm_minute:02d} {alarm_period}")
+                print('Boop, setup alarm!')
+            else:
+                alarm_config_mode = False
+                halt_loop = False
+                lcd.clear()
+                print("setup alarm done")
     
     elif pin is hour_btn:
         if time.ticks_diff(time.ticks_ms(), hour_last) > 300:
-            hour_last = time.ticks_ms()
-            print('+1 hour')
+            if alarm_config_mode:
+                hour_last = time.ticks_ms()
+                alarm_hour += 1
+                lcd.move_to(0,1)
+                lcd.putstr(f"{alarm_hour}:{alarm_minute:02d} {alarm_period}")
     
     elif pin is minute_btn:
         if time.ticks_diff(time.ticks_ms(), minute_last) > 300:
-            minute_last = time.ticks_ms()
-            print('+1 minute!')
+            if alarm_config_mode:
+                minute_last = time.ticks_ms()
+                alarm_minute += 1
+                lcd.move_to(0,1)
+                lcd.putstr(f"{alarm_hour}:{alarm_minute:02d} {alarm_period}")
 
 
 alarm_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
 hour_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
 minute_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
+
 
 def only_ones_changed(prev_time: int, new_time: int):
     if not prev_time: # Handle nonetypes
@@ -114,8 +156,6 @@ def get_hour(dt_obj, get_period=False):
 
 def get_date(dt_obj):
     return f"{month_name[dt_obj[1]]} {dt_obj[2]}, {dt_obj[0]}"
-
-previous_second = None
 
 while True:
     previous_second = ds1307.second
@@ -156,10 +196,13 @@ while True:
                 lcd.putstr(f"{dt_obj[5]:02d}")
         previous_second = dt_obj[5]
 
+        while halt_loop: # Halt loop when paused
+            time.sleep(0.1)
+
         time.sleep(0.2)
 
-    lcd.clear()
 
+    lcd.clear()
 
     lcd.move_to(0,0)
     lcd.putstr(f"32{chr(1)}c  50%")
@@ -169,4 +212,13 @@ while True:
     previous_second = ds1307.second
 
     while ds1307.second % 10 != 0 or ds1307.second == previous_second:
+        while halt_loop: # Halt loop when paused
+            time.sleep(0.1)
+
+            # Quick bugfix: Reprint screen afterwards
+            lcd.move_to(0,0)
+            lcd.putstr(f"32{chr(1)}c  50%")
+            lcd.move_to(0,1)
+            lcd.putstr("Partly Cloudly")
+
         time.sleep(0.2)
