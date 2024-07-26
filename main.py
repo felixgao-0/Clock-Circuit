@@ -65,6 +65,7 @@ halt_loop = False
 
 
 def button_handler(pin):
+    print('call')
     global alarm_last, hour_last, minute_last
     global halt_loop, alarm_config_mode, alarm_time
 
@@ -74,12 +75,7 @@ def button_handler(pin):
             if not alarm_config_mode:
                 alarm_config_mode = True
                 halt_loop = True
-                
 
-                lcd.clear()
-                lcd.putstr("Set alarm:")
-
-                lcd.move_to(0,1)
                 dt_obj = ds1307.datetime
                 if not alarm_time:
                     alarm_time = {
@@ -88,8 +84,14 @@ def button_handler(pin):
                         "period": get_hour(dt_obj, get_period=True)
                     }
 
+                lcd.clear()
+
+                lcd.putstr("Set alarm:")
+                lcd.move_to(0,1)
+
                 lcd.putstr(f"{alarm_time['hour']}:{alarm_time['minute']:02d} {alarm_time['period']}")
                 print('Boop, setup alarm!')
+                print("hi", halt_loop)
             else:
                 alarm_config_mode = False
                 halt_loop = False
@@ -172,23 +174,23 @@ while True:
 
     while ds1307.second % 10 != 0 or ds1307.second == previous_second:
         dt_obj = ds1307.datetime # Save dt object to avoid too many i2c calls
-        if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
+        if (dt_obj[3] == 0) and (dt_obj[4] == 0) and not halt_loop: # Update date if time is 12:00 am
             lcd.move_to(0,0)
             lcd.putstr(get_date(dt_obj))
     
 
-        if dt_obj[4] == 0: # Update hour if minutes at 00
+        if dt_obj[4] == 0 and not halt_loop: # Update hour if minutes at 00
             lcd.move_to(0,1)
             lcd.putstr(get_hour(dt_obj, get_period=False))
             lcd.move_to(9,1)
             lcd.putstr(get_hour(dt_obj, get_period=True))
 
 
-        if dt_obj[5] == 0: # Update minute if seconds at 00
+        if dt_obj[5] == 0 and not halt_loop: # Update minute if seconds at 00
             lcd.move_to(3,1)
             lcd.putstr(f"{dt_obj[4]:02d}")
 
-        if previous_second != dt_obj[5]: # Only change needed digits
+        if previous_second != dt_obj[5] and not halt_loop: # Only change needed digits
             if only_ones_changed(previous_second, dt_obj[5]):
                 lcd.move_to(7,1)
                 lcd.putstr(str(dt_obj[5] % 10))
@@ -221,10 +223,13 @@ while True:
     previous_second = ds1307.second
 
     while ds1307.second % 10 != 0 or ds1307.second == previous_second:
+        print(halt_loop)
+
+
         while halt_loop: # Halt loop when paused
             time.sleep(0.1)
 
-        else: # Quick bugfix: Reprint screen afterwards
+        else:
             lcd.move_to(0,0)
             lcd.putstr(f"32{chr(1)}c  50%")
             lcd.move_to(0,1)
