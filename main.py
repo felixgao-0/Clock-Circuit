@@ -48,22 +48,36 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 
 
 # Setup buttons
-alarm_btn = Pin(22, Pin.IN, Pin.PULL_UP)
+alarm_btn = Pin(21, Pin.IN, Pin.PULL_UP)
 hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
 minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
 
 alarm_last = time.ticks_ms()
+hour_last = time.ticks_ms()
+minute_last = time.ticks_ms()
 
 def button_handler(pin):
-    global alarm_last, alarm_btn
-      
+    global alarm_last, hour_last, minute_last
+
     if pin is alarm_btn:
-        if time.ticks_diff(time.ticks_ms(), alarm_last) > 500:
+        if time.ticks_diff(time.ticks_ms(), alarm_last) > 300:
             alarm_last = time.ticks_ms()
-            print('boop!')
+            print('Boop, setup alarm!')
+    
+    elif pin is hour_btn:
+        if time.ticks_diff(time.ticks_ms(), hour_last) > 300:
+            hour_last = time.ticks_ms()
+            print('+1 hour')
+    
+    elif pin is minute_btn:
+        if time.ticks_diff(time.ticks_ms(), minute_last) > 300:
+            minute_last = time.ticks_ms()
+            print('+1 minute!')
 
 
 alarm_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
+hour_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
+minute_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
 
 def only_ones_changed(prev_time: int, new_time: int):
     if not prev_time: # Handle nonetypes
