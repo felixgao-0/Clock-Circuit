@@ -75,7 +75,7 @@ halt_loop = False
 # Bugfix: Don't print text to screen when clock is halted
 def screentext(string: str):
     if not halt_loop:
-        print(f"adding text: {string}")
+        print(f"Adding Text: {string}")
         lcd.putstr(string)
 
 def toggle_alarm(timer):
@@ -84,7 +84,7 @@ def toggle_alarm(timer):
     if alarm_toggle:
         alarm_buzzer.duty_u16(500)
     else:
-        alarm_buzzer.duty_u16(0)
+        alarm_buzzer. duty_u16(0)
     alarm_toggle = not alarm_toggle
 
 
@@ -138,11 +138,6 @@ def button_handler(pin):
                 minute_last = time.ticks_ms()
                 if alarm_time["minute"] == 59:
                     alarm_time["minute"] = 0
-                    if alarm_time["hour"] == 12:
-                        alarm_time["hour"] = 1
-                        alarm_time["period"] = "AM" if alarm_time["period"] == "PM" else "PM"
-                    else:
-                        alarm_time["hour"] += 1
                 else:
                     alarm_time["minute"] += 1
                 lcd.move_to(0,1)
