@@ -226,7 +226,18 @@ while True:
             lcd.move_to(0,1)
             screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
 
-
+        if alarm_time is not None:
+            if f"{alarm_time['hour']:02d}" == get_hour(dt_obj):
+                if alarm_time["minute"] == dt_obj[4]: 
+                    if alarm_time["period"] == get_hour(dt_obj, get_period=True):
+                        print("Alarm clock go BURRR")
+                        raise Exception("Placeholder end lol")
+                    else:
+                        print("aww period")
+                else:
+                    print("aww min")
+            else:
+                print("aww hr")
         time.sleep(0.2)
 
 
