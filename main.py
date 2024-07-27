@@ -1,6 +1,6 @@
 import time
 
-from machine import I2C, Pin, Timer
+from machine import I2C, Pin, Timer, PWM
 
 from timing import timeit
 
@@ -48,6 +48,8 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 
 
 # Setup buttons and variables for the buttons
+alarm_buzzer = buzzer = PWM(Pin(20))
+
 alarm_btn = Pin(21, Pin.IN, Pin.PULL_UP)
 hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
 minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
@@ -70,7 +72,13 @@ def screentext(string: str):
         print(f"adding text: {string}")
         lcd.putstr(string)
 
-
+def play_alarm():
+    while True:
+        buzzer.duty_u16(500)
+        alarm_buzzer.freq(1000)
+        time.sleep(1.5)
+        buzzer.duty_u16(0)
+        time.sleep(1.5)
 
 def button_handler(pin):
     global alarm_last, hour_last, minute_last
@@ -174,6 +182,7 @@ def get_hour(dt_obj, get_period=False):
 def get_date(dt_obj):
     return f"{month_name[dt_obj[1]]} {dt_obj[2]}, {dt_obj[0]}"
 
+
 while True:
     previous_second = ds1307.second
 
@@ -231,7 +240,7 @@ while True:
                 if alarm_time["minute"] == dt_obj[4]: 
                     if alarm_time["period"] == get_hour(dt_obj, get_period=True):
                         print("Alarm clock go BURRR")
-                        raise Exception("Placeholder end lol")
+                        play_alarm()
                     else:
                         print("aww period")
                 else:
