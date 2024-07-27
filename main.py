@@ -1,5 +1,6 @@
 import time
 
+import _thread
 from machine import I2C, Pin, Timer, PWM
 
 from timing import timeit
@@ -47,8 +48,10 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 #ds1307.datetime = tuple(pi_time) # It expects a tuple type lol
 
 
-# Setup buttons and variables for the buttons
-alarm_buzzer = buzzer = PWM(Pin(20))
+# Setup buttons, buzzer and variables for the alarm
+alarm_buzzer = PWM(Pin(20))
+alarm_buzzer.freq(1000)
+alarm_toggle = False
 
 alarm_btn = Pin(21, Pin.IN, Pin.PULL_UP)
 hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
@@ -72,13 +75,12 @@ def screentext(string: str):
         print(f"adding text: {string}")
         lcd.putstr(string)
 
-def play_alarm():
-    while True:
+def toggle_alarm():
+    if alarm_toggle:
         buzzer.duty_u16(500)
-        alarm_buzzer.freq(1000)
-        time.sleep(1.5)
+    else:
         buzzer.duty_u16(0)
-        time.sleep(1.5)
+    alarm_toggle = not alarm_toggle
 
 def button_handler(pin):
     global alarm_last, hour_last, minute_last
@@ -240,7 +242,7 @@ while True:
                 if alarm_time["minute"] == dt_obj[4]: 
                     if alarm_time["period"] == get_hour(dt_obj, get_period=True):
                         print("Alarm clock go BURRR")
-                        play_alarm()
+                        Timer.init(freq=1.5, mode=Timer.PERIODIC, callback=toggle_alarm)
                     else:
                         print("aww period")
                 else:
