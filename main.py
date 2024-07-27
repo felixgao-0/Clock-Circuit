@@ -64,8 +64,15 @@ alarm_time = None
 halt_loop = False
 
 
+# Bugfix: Don't print text to screen when clock is halted
+def screentext(string: str):
+    if not halt_loop:
+        print(f"adding text: {string}")
+        lcd.putstr(string)
+
+
+
 def button_handler(pin):
-    print('call')
     global alarm_last, hour_last, minute_last
     global halt_loop, alarm_config_mode, alarm_time
 
@@ -89,9 +96,8 @@ def button_handler(pin):
                 lcd.putstr("Set alarm:")
                 lcd.move_to(0,1)
 
-                lcd.putstr(f"{alarm_time['hour']}:{alarm_time['minute']:02d} {alarm_time['period']}")
+                lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
                 print('Boop, setup alarm!')
-                print("hi", halt_loop)
             else:
                 alarm_config_mode = False
                 halt_loop = False
@@ -99,7 +105,7 @@ def button_handler(pin):
                 print("setup alarm done")
     
     elif pin is hour_btn:
-        if time.ticks_diff(time.ticks_ms(), hour_last) > 300:
+        if time.ticks_diff(time.ticks_ms(), hour_last) > 100:
             if alarm_config_mode:
                 hour_last = time.ticks_ms()
                 if alarm_time["hour"] == 12:
@@ -108,15 +114,23 @@ def button_handler(pin):
                 else:
                     alarm_time["hour"] += 1
                 lcd.move_to(0,1)
-                lcd.putstr(f"{alarm_time['hour']}:{alarm_time['minute']:02d} {alarm_time['period']}")
+                lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
     
     elif pin is minute_btn:
-        if time.ticks_diff(time.ticks_ms(), minute_last) > 300:
+        if time.ticks_diff(time.ticks_ms(), minute_last) > 100:
             if alarm_config_mode:
                 minute_last = time.ticks_ms()
-                alarm_time["minute"] += 1
+                if alarm_time["minute"] == 59:
+                    alarm_time["minute"] = 0
+                    if alarm_time["hour"] == 12:
+                        alarm_time["hour"] = 1
+                        alarm_time["period"] = "AM" if alarm_time["period"] == "PM" else "PM"
+                    else:
+                        alarm_time["hour"] += 1
+                else:
+                    alarm_time["minute"] += 1
                 lcd.move_to(0,1)
-                lcd.putstr(f"{alarm_time['hour']}:{alarm_time['minute']:02d} {alarm_time['period']}")
+                lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
 
 
 alarm_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
@@ -167,47 +181,50 @@ while True:
     dt_obj = ds1307.datetime
 
     lcd.move_to(0,0)
-    lcd.putstr(get_date(dt_obj))
+    screentext(get_date(dt_obj))
 
     lcd.move_to(0,1)
-    lcd.putstr(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
+    screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
 
     while ds1307.second % 10 != 0 or ds1307.second == previous_second:
         dt_obj = ds1307.datetime # Save dt object to avoid too many i2c calls
-        if (dt_obj[3] == 0) and (dt_obj[4] == 0) and not halt_loop: # Update date if time is 12:00 am
+        if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
             lcd.move_to(0,0)
-            lcd.putstr(get_date(dt_obj))
+            screentext(get_date(dt_obj))
     
 
-        if dt_obj[4] == 0 and not halt_loop: # Update hour if minutes at 00
+        if dt_obj[4] == 0: # Update hour if minutes at 00
             lcd.move_to(0,1)
-            lcd.putstr(get_hour(dt_obj, get_period=False))
+            screentext(get_hour(dt_obj, get_period=False))
             lcd.move_to(9,1)
-            lcd.putstr(get_hour(dt_obj, get_period=True))
+            screentext(get_hour(dt_obj, get_period=True))
 
 
-        if dt_obj[5] == 0 and not halt_loop: # Update minute if seconds at 00
+        if dt_obj[5] == 0: # Update minute if seconds at 00
             lcd.move_to(3,1)
-            lcd.putstr(f"{dt_obj[4]:02d}")
+            screentext(f"{dt_obj[4]:02d}")
 
-        if previous_second != dt_obj[5] and not halt_loop: # Only change needed digits
+        if previous_second != dt_obj[5]: # Only change needed digits
             if only_ones_changed(previous_second, dt_obj[5]):
                 lcd.move_to(7,1)
-                lcd.putstr(str(dt_obj[5] % 10))
+                screentext(str(dt_obj[5] % 10))
             else:
                 lcd.move_to(6,1)
-                lcd.putstr(f"{dt_obj[5]:02d}")
+                screentext(f"{dt_obj[5]:02d}")
         previous_second = dt_obj[5]
 
+        loop_ran = False
         while halt_loop: # Halt loop when paused
             time.sleep(0.1)
-        else:
+            loop_ran = True
+
+        if loop_ran:
             dt_obj = ds1307.datetime
             lcd.move_to(0,0)
-            lcd.putstr(get_date(dt_obj))
+            screentext(get_date(dt_obj))
 
             lcd.move_to(0,1)
-            lcd.putstr(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
+            screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
 
 
         time.sleep(0.2)
@@ -216,23 +233,22 @@ while True:
     lcd.clear()
 
     lcd.move_to(0,0)
-    lcd.putstr(f"32{chr(1)}c  50%")
+    screentext(f"32{chr(1)}c  50%")
     lcd.move_to(0,1)
-    lcd.putstr("Partly Cloudly")
+    screentext("Partly Cloudly")
 
     previous_second = ds1307.second
 
     while ds1307.second % 10 != 0 or ds1307.second == previous_second:
-        print(halt_loop)
-
-
+        loop_ran = False
         while halt_loop: # Halt loop when paused
             time.sleep(0.1)
+            loop_ran = True
 
-        else:
+        if loop_ran: # Reprint weather IF it was stopped by menu
             lcd.move_to(0,0)
-            lcd.putstr(f"32{chr(1)}c  50%")
+            screentext(f"32{chr(1)}c  50%")
             lcd.move_to(0,1)
-            lcd.putstr("Partly Cloudly")
+            screentext("Partly Cloudly")
 
         time.sleep(0.2)
