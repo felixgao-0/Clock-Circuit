@@ -51,7 +51,10 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 # Setup buttons, buzzer and variables for the alarm
 alarm_buzzer = PWM(Pin(20))
 alarm_buzzer.freq(1000)
-alarm_toggle = False
+alarm_toggle = False # Determines whether to toggle the sound
+alarm_status = False # Determines whether alarm is on
+
+alarm = Timer()
 
 alarm_btn = Pin(21, Pin.IN, Pin.PULL_UP)
 hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
@@ -75,12 +78,15 @@ def screentext(string: str):
         print(f"adding text: {string}")
         lcd.putstr(string)
 
-def toggle_alarm():
+def toggle_alarm(timer):
+    global alarm_toggle
+    print(alarm_toggle)
     if alarm_toggle:
-        buzzer.duty_u16(500)
+        alarm_buzzer.duty_u16(500)
     else:
-        buzzer.duty_u16(0)
+        alarm_buzzer.duty_u16(0)
     alarm_toggle = not alarm_toggle
+
 
 def button_handler(pin):
     global alarm_last, hour_last, minute_last
@@ -237,18 +243,13 @@ while True:
             lcd.move_to(0,1)
             screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
 
-        if alarm_time is not None:
+        if alarm_time is not None and not alarm_status:
             if f"{alarm_time['hour']:02d}" == get_hour(dt_obj):
                 if alarm_time["minute"] == dt_obj[4]: 
                     if alarm_time["period"] == get_hour(dt_obj, get_period=True):
-                        print("Alarm clock go BURRR")
-                        Timer.init(freq=1.5, mode=Timer.PERIODIC, callback=toggle_alarm)
-                    else:
-                        print("aww period")
-                else:
-                    print("aww min")
-            else:
-                print("aww hr")
+                            alarm_status = True
+                            alarm.init(mode=Timer.PERIODIC, period=1500, callback=toggle_alarm)
+        
         time.sleep(0.2)
 
 
@@ -262,6 +263,14 @@ while True:
     previous_second = ds1307.second
 
     while ds1307.second % 10 != 0 or ds1307.second == previous_second:
+        dt_obj = ds1307.datetime
+        if alarm_time is not None and not alarm_status:
+            if f"{alarm_time['hour']:02d}" == get_hour(dt_obj):
+                if alarm_time["minute"] == dt_obj[4]: 
+                    if alarm_time["period"] == get_hour(dt_obj, get_period=True):
+                            alarm_status = True
+                            alarm.init(mode=Timer.PERIODIC, period=1500, callback=toggle_alarm)
+
         loop_ran = False
         while halt_loop: # Halt loop when paused
             time.sleep(0.1)
