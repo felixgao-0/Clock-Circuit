@@ -49,16 +49,26 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 
 # Setup the dimming system
 photo_pin = Pin(16, Pin.IN)
+dim_timer = Timer()
+
+def screen_light(setting: bool, *, timer: bool = False):
+    if setting:
+        lcd.backlight_on()
+        lcd.display_on()
+        if timer and photo_pin.value() == 1: # Dim on timer if meant to be dark only
+            dim_timer.init(period=5000, mode=Timer.ONE_SHOT, callback=lambda t:screen_light(False))
+    else:
+        lcd.backlight_off()
+        lcd.display_off()
 
 
-def dim_screen(pin):
-    print("DIM")
+def handle_screen(pin):
+    if pin.value() == 1:
+        screen_light(False)
+    elif pin.value() == 0:
+        screen_light(True)
 
-def brighten_screen(pin):
-    print("bright")
-
-photo_pin.irq(trigger=Pin.IRQ_RISING, handler=dim_screen)
-photo_pin.irq(trigger=Pin.IRQ_FALLING, handler=brighten_screen)
+photo_pin.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=handle_screen)
 
 
 # Setup buttons, buzzer and variables for the alarm
@@ -85,28 +95,13 @@ alarm_time = None
 halt_loop = False
 
 
-# Bugfix: Don't print text to screen when clock is halted
-def screentext(string: str):
-    if not halt_loop:
-        print(f"Adding Text: {string}")
-        lcd.putstr(string)
-
-def toggle_alarm(timer):
-    global alarm_toggle
-    print(alarm_toggle)
-    if alarm_toggle:
-        alarm_buzzer.duty_u16(500)
-    else:
-        alarm_buzzer. duty_u16(0)
-    alarm_toggle = not alarm_toggle
-
-
 def button_handler(pin):
     global alarm_last, hour_last, minute_last
     global halt_loop, alarm_config_mode, alarm_time
 
     if pin is alarm_btn:
         if time.ticks_diff(time.ticks_ms(), alarm_last) > 300:
+            screen_light(True)
             alarm_last = time.ticks_ms()
             if not alarm_config_mode:
                 alarm_config_mode = True
@@ -128,6 +123,8 @@ def button_handler(pin):
                 lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
                 print('Boop, setup alarm!')
             else:
+                if photo_pin.value() == 1:
+                    screen_light(False)
                 alarm_config_mode = False
                 halt_loop = False
                 lcd.clear()
@@ -144,6 +141,8 @@ def button_handler(pin):
                     alarm_time["hour"] += 1
                 lcd.move_to(0,1)
                 lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
+            elif pin.value() == 0: # Brighten screen when not alarm mode just cause
+                screen_light(True, timer=True)
     
     elif pin is minute_btn:
         if time.ticks_diff(time.ticks_ms(), minute_last) > 100:
@@ -155,11 +154,28 @@ def button_handler(pin):
                     alarm_time["minute"] += 1
                 lcd.move_to(0,1)
                 lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-
+            elif pin.value() == 0: # Brighten screen when not alarm mode just cause
+                screen_light(True, timer=True)
 
 alarm_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
 hour_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
 minute_btn.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
+
+
+# Bugfix: Don't print text to screen when clock is halted
+def screentext(string: str):
+    if not halt_loop:
+        print(f"Adding Text: {string}")
+        lcd.putstr(string)
+
+
+def toggle_alarm(timer):
+    global alarm_toggle
+    if alarm_toggle:
+        alarm_buzzer.duty_u16(500)
+    else:
+        alarm_buzzer. duty_u16(0)
+    alarm_toggle = not alarm_toggle
 
 
 def only_ones_changed(prev_time: int, new_time: int):
