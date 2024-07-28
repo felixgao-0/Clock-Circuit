@@ -50,12 +50,15 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 # Setup the dimming system
 photo_pin = Pin(16, Pin.IN)
 
-"""
-while True:
-    val = photo_pin.value()
-    print(val)
-    time.sleep(.2)
-"""
+
+def dim_screen(pin):
+    print("DIM")
+
+def brighten_screen(pin):
+    print("bright")
+
+photo_pin.irq(trigger=Pin.IRQ_RISING, handler=dim_screen)
+photo_pin.irq(trigger=Pin.IRQ_FALLING, handler=brighten_screen)
 
 
 # Setup buttons, buzzer and variables for the alarm
