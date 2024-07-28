@@ -77,7 +77,7 @@
       "top": 28.5,
       "left": 589.7,
       "rotate": 90,
-      "attrs": {}
+      "attrs": { "threshold": "2.8" }
     }
   ],
   "connections": [
@@ -106,6 +106,7 @@
     [ "bb1:bp.50", "bb1:61b.j", "red", [ "v0" ] ],
     [ "bb1:bn.49", "bb1:60b.j", "black", [ "v-39.7", "h-0.8" ] ],
     [ "bb1:48t.a", "bb1:tp.39", "red", [ "v0" ] ],
+    [ "ldr1:DO", "pico:GP16", "green", [ "v0" ] ],
     [ "rtc1:GND", "bb1:4b.h", "", [ "$bb" ] ],
     [ "rtc1:5V", "bb1:5b.h", "", [ "$bb" ] ],
     [ "rtc1:SDA", "bb1:6b.h", "", [ "$bb" ] ],
@@ -134,8 +135,7 @@
     [ "ldr1:VCC", "bb1:61b.h", "", [ "$bb" ] ],
     [ "ldr1:GND", "bb1:60b.h", "", [ "$bb" ] ],
     [ "ldr1:DO", "bb1:59b.h", "", [ "$bb" ] ],
-    [ "ldr1:AO", "bb1:58b.h", "", [ "$bb" ] ],
-    [ "ldr1:DO", "pico:GP16", "green", [ "v0" ] ]
+    [ "ldr1:AO", "bb1:58b.h", "", [ "$bb" ] ]
   ],
   "dependencies": {}
 }
