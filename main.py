@@ -51,13 +51,18 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 photo_pin = Pin(16, Pin.IN)
 dim_timer = Timer()
 
+alr_on = False
 def screen_light(setting: bool, *, timer: bool = False):
+    global alr_on
     if setting:
-        lcd.backlight_on()
-        lcd.display_on()
-        if timer and photo_pin.value() == 1: # Dim on timer if meant to be dark only
-            dim_timer.init(period=5000, mode=Timer.ONE_SHOT, callback=lambda t:screen_light(False))
+        if not alr_on:
+            alr_on = True
+            lcd.backlight_on()
+            lcd.display_on()
+            if timer and photo_pin.value() == 1: # Dim on timer if meant to be dark only
+                dim_timer.init(period=5000, mode=Timer.ONE_SHOT, callback=lambda t:screen_light(False))
     else:
+        alr_on = False
         lcd.backlight_off()
         lcd.display_off()
 
@@ -78,106 +83,178 @@ alarm_toggle = False # Determines whether to toggle the sound
 alarm_status = False # Determines whether alarm is on
 
 alarm = Timer()
+clear_display = Timer()
 
+# Buttons
 alarm_btn = Pin(21, Pin.IN, Pin.PULL_UP)
 hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
 minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
 
-press_start_time = time.ticks_ms()
-press_duration = 0
-
+# Last press time for debounce
 alarm_last = time.ticks_ms()
 hour_last = time.ticks_ms()
 minute_last = time.ticks_ms()
 
-alarm_config_mode = False
+button_pressed = False     # If alarm btn is being pressed
+press_duration = 0         # How long the alarm btn was pressed for
 
-alarm_time = None
+alarm_config_mode = False  # Weather the alarm is in setup mode (I.e setting time)
+alarm_time = None          # Stores the time the alarm should activate
+halt_loop = False          # Pause loop when this is `True`
 
-# Pause loops when this is `True`
-halt_loop = False
 
-
+def close_menu(pin):
+    print("clearing lcd")
+    global halt_loop
+    lcd.clear()
+    halt_loop = False
+ 
 def button_irq_handler(pin):
-    global press_start_time, press_duration, alarm_last
-    if time.ticks_diff(time.ticks_ms(), alarm_last) > 300:
-        print(pin.value())
-        if pin.value() == 0:
-            print("Holding")
-            press_start_time = time.ticks_ms()
-        elif pin.value() == 1:
-            print("Let go!")
-            alarm_last = time.ticks_ms()
-            press_duration = time.ticks_diff(time.ticks_ms(), press_start_time)
-            print(f"Button held for {press_duration} ms")
+    global button_pressed, press_duration, halt_loop
+    global alarm_status, alarm_time, alarm_last, alarm_config_mode
     
-def alarm_handler(pin):
-    global alarm_last
-    global halt_loop, alarm_config_mode, alarm_time
+    current_time = time.ticks_ms()
+    
+    # Debounce
+    if time.ticks_diff(current_time, alarm_last) < 50:
+        return
 
-    if time.ticks_diff(time.ticks_ms(), alarm_last) > 100:
-        screen_light(True)
-        alarm_last = time.ticks_ms()
-        if not alarm_config_mode:
-            alarm_config_mode = True
-            halt_loop = True
+    if pin.value() == 0 and not button_pressed: # When pressed
+        button_pressed = True
+        press_duration = current_time
+        alarm_last = current_time  # debounce
+    elif pin.value() == 1 and button_pressed:   # When let go
+        button_pressed = False
+        press_duration = time.ticks_diff(current_time, press_duration)
+        alarm_last = current_time  # debounce
 
-            dt_obj = ds1307.datetime
+        print(alarm_status)
+        if alarm_status: # Options if the alarm is ON:
+            if press_duration > 1000: # Shut off alarm
+                print("disable alarm")
+                alarm_status = False
+                alarm_time = None
+                alarm.deinit()
 
-            lcd.clear()
-            if not alarm_time:
-                lcd.putstr("Setup alarm:")
-                alarm_time = {
-                    "hour": int(get_hour(dt_obj, get_period=False)),
-                    "minute": int(dt_obj[4]),
-                    "period": get_hour(dt_obj, get_period=True)
-                    }
-            else:
-                lcd.putstr("Edit alarm:")
+                halt_loop = True
+                lcd.clear()
+                screen_light(True, timer=True)
+                lcd.putstr("Alarm off!")
                 lcd.move_to(0,1)
+                if alarm_time["period"] == "AM":
+                    lcd.putstr("Good morning!")
+                else:
+                    lcd.putstr("Good afternoon!")
 
-                lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-                print('Boop, setup alarm!')
-        else:
-            if photo_pin.value() == 1:
-                screen_light(False)
-            alarm_config_mode = False
-            halt_loop = False
-            lcd.clear()
-            print("setup alarm done")
+            else:
+                print("snooze alarm")
+                alarm_time["minute"] += 5 # SNOOZE!
+
+                if alarm_time["minute"] >= 60:
+                    alarm_time["hour"] += 1
+                    alarm_time["minute"] -= 60
+                
+                if alarm_time["hour"] > 12:
+                    alarm_time["hour"] -= 12
+                    alarm_time["period"] = "PM" if alarm_time["period"] == "AM" else "AM"
+        
+                elif alarm_time["hour"] == 12:
+                    alarm_time["period"] = "PM" if alarm_time["period"] == "AM" else "AM"
+                
+                alarm_status = False
+                alarm.deinit()
+
+                halt_loop = True
+                lcd.clear()
+                screen_light(True, timer=True)
+                lcd.putstr("Snoozed 5 Min!")
+                lcd.move_to(0,1)
+                lcd.putstr("Zzzzz...")
+                
+                print("halted?")
+
+                clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
+
+        else: # options if alarm is OFF
+            if press_duration > 1000 and alarm_time: # If hold & alarm set, clear alarm
+                print("clear alarm")
+                alarm_time = None
+                halt_loop = True
+                lcd.clear()
+                screen_light(True, timer=True)
+                lcd.putstr("Cleared alarm")
+
+                clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
+
+            elif press_duration < 1000: # Otherwise set or edit alarm, or leave menu
+                print("menu setup")
+                screen_light(True)
+
+                if not alarm_config_mode:
+                    alarm_config_mode = True
+                    halt_loop = True
+
+                    dt_obj = ds1307.datetime
+
+                    lcd.clear()
+                    if not alarm_time:
+                        lcd.putstr("Setup alarm:")
+                        alarm_time = {
+                            "hour": int(get_hour(dt_obj, get_period=False)),
+                            "minute": int(dt_obj[4]),
+                            "period": get_hour(dt_obj, get_period=True)
+                        }
+                    else:
+                        lcd.putstr("Edit alarm:")
+                    
+                    lcd.move_to(0,1)
+
+                    lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
+                    print('Boop, setup alarm!')
+                else:
+                    if photo_pin.value() == 1:
+                        screen_light(False)
+                    alarm_config_mode = False
+                    halt_loop = False
+                    lcd.clear()
+                    print("setup alarm done")
 
 def hour_handler(pin):
     global hour_last
     global alarm_config_mode, alarm_time
 
-    if time.ticks_diff(time.ticks_ms(), hour_last) > 100:
-        if alarm_config_mode:
-            hour_last = time.ticks_ms()
-            if alarm_time["hour"] == 12:
-                alarm_time["hour"] = 1
-                alarm_time["period"] = "AM" if alarm_time["period"] == "PM" else "PM"
-            else:
-                alarm_time["hour"] += 1
-            lcd.move_to(0,1)
-            lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-        elif pin.value() == 0: # Brighten screen when not alarm mode just cause
-            screen_light(True, timer=True)
+    if time.ticks_diff(time.ticks_ms(), hour_last) < 200: # Debounce
+        return
+    if alarm_config_mode:
+        hour_last = time.ticks_ms()
+        if alarm_time["hour"] == 12:
+            alarm_time["hour"] = 1
+            alarm_time["period"] = "AM" if alarm_time["period"] == "PM" else "PM"
+        else:
+            alarm_time["hour"] += 1
+        lcd.move_to(0,1)
+        lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
+    elif pin.value() == 0: # Brighten screen when not alarm mode just cause
+        screen_light(True, timer=True)
     
+
 def minute_handler(pin):
     global minute_last
     global alarm_config_mode, alarm_time
 
-    if time.ticks_diff(time.ticks_ms(), minute_last) > 100:
-        if alarm_config_mode:
-            minute_last = time.ticks_ms()
-            if alarm_time["minute"] == 59:
-                alarm_time["minute"] = 0
-            else:
-                alarm_time["minute"] += 1
-            lcd.move_to(0,1)
-            lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-        elif pin.value() == 0: # Brighten screen when not alarm mode just cause
-            screen_light(True, timer=True)
+    if time.ticks_diff(time.ticks_ms(), minute_last) < 200: # Debounce
+        return
+
+    if alarm_config_mode:
+        minute_last = time.ticks_ms()
+        if alarm_time["minute"] == 59:
+            alarm_time["minute"] = 0
+        else:
+            alarm_time["minute"] += 1
+        lcd.move_to(0,1)
+        lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
+    elif pin.value() == 0: # Brighten screen when not alarm mode just cause
+        screen_light(True, timer=True)
 
 
 alarm_btn.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=button_irq_handler)
@@ -188,7 +265,7 @@ minute_btn.irq(trigger=Pin.IRQ_RISING, handler=minute_handler)
 # Bugfix: Don't print text to screen when clock is halted
 def screentext(string: str):
     if not halt_loop:
-        #print(f"Adding Text: {string}")
+        print(f"Adding Text: {string}")
         lcd.putstr(string)
 
 
@@ -238,96 +315,62 @@ def get_date(dt_obj):
     return f"{month_name[dt_obj[1]]} {dt_obj[2]}, {dt_obj[0]}"
 
 
+dt_obj = ds1307.datetime
+
+lcd.move_to(0,0)
+screentext(get_date(dt_obj))
+
+lcd.move_to(0,1)
+screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
+
+previous_second = ds1307.second
 while True:
-    previous_second = ds1307.second
-
-    lcd.clear()
-    dt_obj = ds1307.datetime
-
-    lcd.move_to(0,0)
-    screentext(get_date(dt_obj))
-
-    lcd.move_to(0,1)
-    screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
-
-    while ds1307.second % 10 != 0 or ds1307.second == previous_second:
-        dt_obj = ds1307.datetime # Save dt object to avoid too many i2c calls
-        if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
-            lcd.move_to(0,0)
-            screentext(get_date(dt_obj))
+    dt_obj = ds1307.datetime # Save dt object to avoid too many i2c calls
+    if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
+        lcd.move_to(0,0)
+        screentext(get_date(dt_obj))
     
 
-        if dt_obj[4] == 0: # Update hour if minutes at 00
-            lcd.move_to(0,1)
-            screentext(get_hour(dt_obj, get_period=False))
-            lcd.move_to(9,1)
-            screentext(get_hour(dt_obj, get_period=True))
-
-
-        if dt_obj[5] == 0: # Update minute if seconds at 00
-            lcd.move_to(3,1)
-            screentext(f"{dt_obj[4]:02d}")
-
-        if previous_second != dt_obj[5]: # Only change needed digits
-            if only_ones_changed(previous_second, dt_obj[5]):
-                lcd.move_to(7,1)
-                screentext(str(dt_obj[5] % 10))
-            else:
-                lcd.move_to(6,1)
-                screentext(f"{dt_obj[5]:02d}")
-        previous_second = dt_obj[5]
-
-        loop_ran = False
-        while halt_loop: # Halt loop when paused
-            time.sleep(0.1)
-            loop_ran = True
-
-        if loop_ran:
-            dt_obj = ds1307.datetime
-            lcd.move_to(0,0)
-            screentext(get_date(dt_obj))
-
-            lcd.move_to(0,1)
-            screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
-
-        if alarm_time is not None and not alarm_status:
-            if f"{alarm_time['hour']:02d}" == get_hour(dt_obj):
-                if alarm_time["minute"] == dt_obj[4]: 
-                    if alarm_time["period"] == get_hour(dt_obj, get_period=True):
-                            alarm_status = True
-                            alarm.init(mode=Timer.PERIODIC, period=1500, callback=toggle_alarm)
-        
-        time.sleep(0.2)
-
-
-    if not alarm_status:
-        lcd.clear()
-
-        lcd.move_to(0,0)
-        screentext(f"32{chr(1)}c  50%")
+    if dt_obj[4] == 0: # Update hour if minutes at 00
         lcd.move_to(0,1)
-        screentext("Partly Cloudly")
+        screentext(get_hour(dt_obj, get_period=False))
+        lcd.move_to(9,1)
+        screentext(get_hour(dt_obj, get_period=True))
 
-    previous_second = ds1307.second
 
-    while (ds1307.second % 10 != 0 or ds1307.second == previous_second) and not alarm_status:
+    if dt_obj[5] == 0: # Update minute if seconds at 00
+        lcd.move_to(3,1)
+        screentext(f"{dt_obj[4]:02d}")
+
+    if previous_second != dt_obj[5]: # Only change needed digits
+        if only_ones_changed(previous_second, dt_obj[5]):
+            lcd.move_to(7,1)
+            screentext(str(dt_obj[5] % 10))
+        else:
+            lcd.move_to(6,1)
+            screentext(f"{dt_obj[5]:02d}")
+        previous_second = ds1307.second
+
+    loop_ran = False
+    while halt_loop: # Halt loop when paused
+        print("halted loop")
+        time.sleep(0.1)
+        loop_ran = True
+
+    if loop_ran:
         dt_obj = ds1307.datetime
-        if alarm_time is not None and not alarm_status:
-            if f"{alarm_time['hour']:02d}" == get_hour(dt_obj):
-                if alarm_time["minute"] == dt_obj[4]: 
-                    if alarm_time["period"] == get_hour(dt_obj, get_period=True):
-                            alarm_status = True
-                            alarm.init(mode=Timer.PERIODIC, period=1500, callback=toggle_alarm)
+        lcd.move_to(0,0)
+        screentext(get_date(dt_obj))
 
-        loop_ran = False
-        while halt_loop: # Halt loop when paused
-            time.sleep(0.1)
-            loop_ran = True
+        lcd.move_to(0,1)
+        screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
 
-        if loop_ran: # Reprint weather IF it was stopped by menu
-            lcd.move_to(0,0)
-            screentext(f"32{chr(1)}c  50%")
-            lcd.move_to(0,1)
-            screentext("Partly Cloudly")
-
-        time.sleep(0.2)
+    if alarm_time is not None and not alarm_status:
+        if f"{alarm_time['hour']:02d}" == get_hour(dt_obj):
+            if alarm_time["minute"] == dt_obj[4]: 
+                if alarm_time["period"] == get_hour(dt_obj, get_period=True):
+                    alarm_status = True
+                    screen_light(True)
+                    alarm.init(mode=Timer.PERIODIC, period=1500, callback=toggle_alarm)
+        
+    time.sleep(0.2)
