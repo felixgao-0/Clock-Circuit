@@ -101,10 +101,13 @@ halt_loop = False
 def button_irq_handler(pin):
     global press_start_time, press_duration, alarm_last
     if time.ticks_diff(time.ticks_ms(), alarm_last) > 300:
-        alarm_last = time.ticks_ms()
-        if pin.value() == 1:
+        print(pin.value())
+        if pin.value() == 0:
+            print("Holding")
             press_start_time = time.ticks_ms()
-        else:
+        elif pin.value() == 1:
+            print("Let go!")
+            alarm_last = time.ticks_ms()
             press_duration = time.ticks_diff(time.ticks_ms(), press_start_time)
             print(f"Button held for {press_duration} ms")
     
@@ -176,6 +179,7 @@ def minute_handler(pin):
         elif pin.value() == 0: # Brighten screen when not alarm mode just cause
             screen_light(True, timer=True)
 
+
 alarm_btn.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=button_irq_handler)
 hour_btn.irq(trigger=Pin.IRQ_RISING, handler=hour_handler)
 minute_btn.irq(trigger=Pin.IRQ_RISING, handler=minute_handler)
@@ -184,7 +188,7 @@ minute_btn.irq(trigger=Pin.IRQ_RISING, handler=minute_handler)
 # Bugfix: Don't print text to screen when clock is halted
 def screentext(string: str):
     if not halt_loop:
-        print(f"Adding Text: {string}")
+        #print(f"Adding Text: {string}")
         lcd.putstr(string)
 
 
