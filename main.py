@@ -77,112 +77,162 @@ alarm_buzzer.freq(1000)
 alarm_toggle = False # Determines whether to toggle the sound
 alarm_status = False # Determines whether alarm is on
 
-alarm = Timer()
+alarm = Timer(-1)
 
+
+# Buttons
 alarm_btn = Pin(21, Pin.IN, Pin.PULL_UP)
 hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
 minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
 
-press_start_time = time.ticks_ms()
-press_duration = 0
-button_pressed = False
-debounce_timer = Timer()
-check_timer = Timer()
-
+# Last press time for debounce
 alarm_last = time.ticks_ms()
 hour_last = time.ticks_ms()
 minute_last = time.ticks_ms()
 
-alarm_config_mode = False
+button_pressed = False     # If alarm btn is being pressed
+press_duration = 0         # How long the alarm btn was pressed for
 
-alarm_time = None
-
-# Pause loops when this is `True`
-halt_loop = False
-
+alarm_config_mode = False  # Weather the alarm is in setup mode (I.e setting time)
+alarm_time = None          # Stores the time the alarm should activate
+halt_loop = False          # Pause loop when this is `True`
 
 
+def close_menu():
+    global halt_loop
+    lcd.clear()
+    halt_loop = False
+ 
 def button_irq_handler(pin):
-    global button_pressed, press_start_time, alarm_last
+    global button_pressed, press_duration, halt_loop
+    global alarm_status, alarm_time, alarm_last, alarm_config_mode
     
-    if time.ticks_diff(time.ticks_ms(), alarm_last) > 100:
-        print(pin.value())
-        if pin.value() == 0:
-            print("Holding")
-            press_start_time = time.ticks_ms()
-        elif pin.value() == 1:
-            print("Let go!")
-            press_duration = time.ticks_diff(time.ticks_ms(), press_start_time)
-            alarm_last = time.ticks_ms()
-            print(f"Button held for {press_duration} ms")
+    current_time = time.ticks_ms()
     
-def alarm_handler(pin):
-    global alarm_last
-    global halt_loop, alarm_config_mode, alarm_time
+    # Debounce
+    if time.ticks_diff(current_time, alarm_last) < 50:
+        return
 
-    if time.ticks_diff(time.ticks_ms(), alarm_last) > 100:
-        screen_light(True)
-        alarm_last = time.ticks_ms()
-        if not alarm_config_mode:
-            alarm_config_mode = True
-            halt_loop = True
+    if pin.value() == 0 and not button_pressed: # When pressed
+        button_pressed = True
+        press_duration = current_time
+        alarm_last = current_time  # debounce
+    elif pin.value() == 1 and button_pressed:   # When let go
+        button_pressed = False
+        press_duration = time.ticks_diff(current_time, press_duration)
+        alarm_last = current_time  # debounce
 
-            dt_obj = ds1307.datetime
-
-            lcd.clear()
-            if not alarm_time:
-                lcd.putstr("Setup alarm:")
-                alarm_time = {
-                    "hour": int(get_hour(dt_obj, get_period=False)),
-                    "minute": int(dt_obj[4]),
-                    "period": get_hour(dt_obj, get_period=True)
-                    }
+        print(alarm_status)
+        if alarm_status: # Options if the alarm is ON:
+            if press_duration > 1000: # Shut off alarm
+                print("disable alarm")
+                alarm_status = False
+                alarm_time = None
+                alarm.deinit()
             else:
-                lcd.putstr("Edit alarm:")
-                lcd.move_to(0,1)
+                print("snooze alarm")
+                alarm_time["minute"] += 5 # SNOOZE!
 
-                lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-                print('Boop, setup alarm!')
-        else:
-            if photo_pin.value() == 1:
-                screen_light(False)
-            alarm_config_mode = False
-            halt_loop = False
-            lcd.clear()
-            print("setup alarm done")
+                if alarm_time["minute"] >= 60:
+                    alarm_time["hour"] += 1
+                    alarm_time["minute"] -= 60
+                
+                if alarm_time["hour"] > 12:
+                    alarm_time["hour"] -= 12
+                    alarm_time["period"] = "PM" if alarm_time["period"] == "AM" else "AM"
+        
+                elif alarm_time["hour"] == 12:
+                    alarm_time["period"] = "PM" if alarm_time["period"] == "AM" else "AM"
+                
+                alarm_status = False
+                alarm.deinit()
+
+                halt_loop = True
+                lcd.clear()
+                screen_light(True, timer=True)
+                lcd.putstr("Snoozed 5 Min!")
+                lcd.move_to(0,1)
+                lcd.putstr("Zzzzz...")
+                Timer().init(period=2000, mode=Timer.ONE_SHOT, callback=lambda t:close_menu())
+
+        else: # options if alarm is OFF
+            if press_duration > 1000 and alarm_time: # If hold & alarm set, clear alarm
+                print("clear alarm")
+                alarm_time = None
+                halt_loop = True
+                lcd.clear()
+                screen_light(True, timer=True)
+                lcd.putstr("Cleared alarm")
+                Timer().init(period=2000, mode=Timer.ONE_SHOT, callback=lambda t:close_menu())
+            elif press_duration < 1000: # Otherwise set or edit alarm, or leave menu
+                print("menu setup")
+                screen_light(True)
+
+                if not alarm_config_mode:
+                    alarm_config_mode = True
+                    halt_loop = True
+
+                    dt_obj = ds1307.datetime
+
+                    lcd.clear()
+                    if not alarm_time:
+                        lcd.putstr("Setup alarm:")
+                        alarm_time = {
+                            "hour": int(get_hour(dt_obj, get_period=False)),
+                            "minute": int(dt_obj[4]),
+                            "period": get_hour(dt_obj, get_period=True)
+                        }
+                    else:
+                        lcd.putstr("Edit alarm:")
+                    
+                    lcd.move_to(0,1)
+
+                    lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
+                    print('Boop, setup alarm!')
+                else:
+                    if photo_pin.value() == 1:
+                        screen_light(False)
+                    alarm_config_mode = False
+                    halt_loop = False
+                    lcd.clear()
+                    print("setup alarm done")
 
 def hour_handler(pin):
     global hour_last
     global alarm_config_mode, alarm_time
 
-    if time.ticks_diff(time.ticks_ms(), hour_last) > 100:
-        if alarm_config_mode:
-            hour_last = time.ticks_ms()
-            if alarm_time["hour"] == 12:
-                alarm_time["hour"] = 1
-                alarm_time["period"] = "AM" if alarm_time["period"] == "PM" else "PM"
-            else:
-                alarm_time["hour"] += 1
-            lcd.move_to(0,1)
-            lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-        elif pin.value() == 0: # Brighten screen when not alarm mode just cause
-            screen_light(True, timer=True)
+    if time.ticks_diff(time.ticks_ms(), hour_last) < 100: # Debounce
+        return
+    if alarm_config_mode:
+        hour_last = time.ticks_ms()
+        if alarm_time["hour"] == 12:
+            alarm_time["hour"] = 1
+            alarm_time["period"] = "AM" if alarm_time["period"] == "PM" else "PM"
+        else:
+            alarm_time["hour"] += 1
+        lcd.move_to(0,1)
+        lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
+    elif pin.value() == 0: # Brighten screen when not alarm mode just cause
+        screen_light(True, timer=True)
     
+
 def minute_handler(pin):
     global minute_last
     global alarm_config_mode, alarm_time
 
-    if time.ticks_diff(time.ticks_ms(), minute_last) > 100:
-        if alarm_config_mode:
-            minute_last = time.ticks_ms()
-            if alarm_time["minute"] == 59:
-                alarm_time["minute"] = 0
-            else:
-                alarm_time["minute"] += 1
-            lcd.move_to(0,1)
-            lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-        elif pin.value() == 0: # Brighten screen when not alarm mode just cause
-            screen_light(True, timer=True)
+    if time.ticks_diff(time.ticks_ms(), minute_last) < 100: # Debounce
+        return
+
+    if alarm_config_mode:
+        minute_last = time.ticks_ms()
+        if alarm_time["minute"] == 59:
+            alarm_time["minute"] = 0
+        else:
+            alarm_time["minute"] += 1
+        lcd.move_to(0,1)
+        lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
+    elif pin.value() == 0: # Brighten screen when not alarm mode just cause
+        screen_light(True, timer=True)
 
 
 alarm_btn.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=button_irq_handler)
