@@ -77,7 +77,7 @@
       "top": 28.5,
       "left": 589.7,
       "rotate": 90,
-      "attrs": { "threshold": "2.8" }
+      "attrs": { "threshold": "3.2" }
     }
   ],
   "connections": [
