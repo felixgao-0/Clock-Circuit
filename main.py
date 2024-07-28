@@ -47,6 +47,16 @@ lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
 #pi_time[5] = 50
 #ds1307.datetime = tuple(pi_time) # It expects a tuple type lol
 
+# Setup the dimming system
+photo_pin = Pin(16, Pin.IN)
+
+"""
+while True:
+    val = photo_pin.value()
+    print(val)
+    time.sleep(.2)
+"""
+
 
 # Setup buttons, buzzer and variables for the alarm
 alarm_buzzer = PWM(Pin(20))
