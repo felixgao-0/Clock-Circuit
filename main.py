@@ -77,7 +77,7 @@ alarm_buzzer.freq(1000)
 alarm_toggle = False # Determines whether to toggle the sound
 alarm_status = False # Determines whether alarm is on
 
-alarm = Timer(-1)
+alarm = Timer()
 
 
 # Buttons
@@ -201,7 +201,7 @@ def hour_handler(pin):
     global hour_last
     global alarm_config_mode, alarm_time
 
-    if time.ticks_diff(time.ticks_ms(), hour_last) < 100: # Debounce
+    if time.ticks_diff(time.ticks_ms(), hour_last) < 200: # Debounce
         return
     if alarm_config_mode:
         hour_last = time.ticks_ms()
@@ -220,7 +220,7 @@ def minute_handler(pin):
     global minute_last
     global alarm_config_mode, alarm_time
 
-    if time.ticks_diff(time.ticks_ms(), minute_last) < 100: # Debounce
+    if time.ticks_diff(time.ticks_ms(), minute_last) < 200: # Debounce
         return
 
     if alarm_config_mode:
