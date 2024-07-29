@@ -78,8 +78,7 @@
       "left": 589.7,
       "rotate": 90,
       "attrs": { "threshold": "3.2" }
-    },
-    { "type": "wokwi-logic-analyzer", "id": "logic1", "top": -105.25, "left": 278.4, "attrs": {} }
+    }
   ],
   "connections": [
     [ "pico:GND.7", "bb1:bn.1", "black", [ "h29.11", "v116.5" ] ],
@@ -136,9 +135,7 @@
     [ "ldr1:VCC", "bb1:61b.h", "", [ "$bb" ] ],
     [ "ldr1:GND", "bb1:60b.h", "", [ "$bb" ] ],
     [ "ldr1:DO", "bb1:59b.h", "", [ "$bb" ] ],
-    [ "ldr1:AO", "bb1:58b.h", "", [ "$bb" ] ],
-    [ "bb1:27t.b", "logic1:D0", "green", [ "v-67.2", "h-134.4", "v-96" ] ],
-    [ "logic1:GND", "bb1:bn.9", "black", [ "h0" ] ]
+    [ "ldr1:AO", "bb1:58b.h", "", [ "$bb" ] ]
   ],
   "dependencies": {}
 }
