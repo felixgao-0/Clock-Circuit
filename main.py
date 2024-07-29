@@ -53,12 +53,8 @@ def screen_light(setting: bool, *, timer: bool = False):
             lcd.backlight_on()
 
         if timer and photo_pin.value() == 1: # Dim on timer if meant to be dark only
-            print("Dim timer active")
-            dim_timer.init(period=5000, mode=Timer.ONE_SHOT, callback=lambda t:screen_light(False))
-        else:
-            print(f"heh on {timer} and {photo_pin.value()}")                
+            dim_timer.init(period=5000, mode=Timer.ONE_SHOT, callback=lambda t:screen_light(False))            
     else:
-        print("Dim screen")
         alr_on = False
         lcd.backlight_off()
 
@@ -100,7 +96,6 @@ halt_loop = False          # Pause loop when this is `True`
 
 
 def close_menu(pin):
-    print("clearing lcd")
     global halt_loop
     lcd.clear()
     halt_loop = False
@@ -126,13 +121,11 @@ def button_irq_handler(pin):
 
         if alarm_status: # Options if the alarm is ON:
             if press_duration > 1000: # Shut off alarm
-                print("disable alarm")
                 alarm_status = False
                 time_period = alarm_time["period"]
                 alarm_time = None
                 alarm.deinit()
                 alarm_buzzer.duty_u16(0)
-                print()
 
                 halt_loop = True
                 lcd.clear()
@@ -147,7 +140,6 @@ def button_irq_handler(pin):
                 clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
 
             else:
-                print("snooze alarm")
                 alarm_time["minute"] += 5 # SNOOZE!
 
                 if alarm_time["minute"] >= 60:
@@ -176,7 +168,6 @@ def button_irq_handler(pin):
 
         else: # options if alarm is OFF
             if press_duration > 1000 and alarm_time: # If hold & alarm set, clear alarm
-                print("clear alarm")
                 alarm_time = None
                 halt_loop = True
                 lcd.clear()
@@ -186,7 +177,6 @@ def button_irq_handler(pin):
                 screen_light(True, timer=True)
 
             elif press_duration < 1000: # Otherwise set or edit alarm, or leave menu
-                print("menu setup")
                 screen_light(True)
 
                 if not alarm_config_mode:
@@ -209,14 +199,13 @@ def button_irq_handler(pin):
                     lcd.move_to(0,1)
 
                     lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-                    print('Boop, setup alarm!')
                 else:
                     if photo_pin.value() == 1:
                         screen_light(False)
+
                     alarm_config_mode = False
                     halt_loop = False
                     lcd.clear()
-                    print("setup alarm done")
 
 def hour_handler(pin):
     global hour_last
@@ -264,13 +253,11 @@ minute_btn.irq(trigger=Pin.IRQ_RISING, handler=minute_handler)
 # Bugfix: Don't print text to screen when clock is halted
 def screentext(string: str):
     if not halt_loop:
-        #print(f"Adding Text: {string}")
         lcd.putstr(string)
 
 
 def toggle_alarm(timer):
     global alarm_toggle
-    print(alarm_toggle)
     if alarm_toggle:
         alarm_buzzer.duty_u16(500)
     else:
