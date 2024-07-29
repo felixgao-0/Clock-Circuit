@@ -12,12 +12,9 @@ from ds1307 import DS1307
 # Credit: https://github.com/T-622/RPI-PICO-I2C-LCD
 from pico_i2c_lcd import I2cLcd
 
-#import weather
 
 time.sleep(0.1) # Wait for USB to become ready
 
-#weather.connect_wifi()
-#weather.fetch_weather()
 
 month_name = ["", "Jan", "Feb", "Mar", "Apr",
               "May", "Jun", "Jul","Aug", "Sept",
@@ -31,10 +28,6 @@ ds1307 = DS1307(addr=0x68, i2c=rtc_clock)
 # Setup the display to print everything to!
 display = I2C(1, scl=Pin(3), sda=Pin(2), freq=800000)
 lcd = I2cLcd(display, 0x27, 2, 16)
-
-# Define custom characters
-lcd.custom_char(1, bytearray([0x0E,0x0A,0x0E,0x00,
-0x00,0x00,0x00,0x00]))
 
 
 # As far as I understand the pi should get accurate
@@ -58,13 +51,16 @@ def screen_light(setting: bool, *, timer: bool = False):
         if not alr_on:
             alr_on = True
             lcd.backlight_on()
-            lcd.display_on()
-            if timer and photo_pin.value() == 1: # Dim on timer if meant to be dark only
-                dim_timer.init(period=5000, mode=Timer.ONE_SHOT, callback=lambda t:screen_light(False))
+
+        if timer and photo_pin.value() == 1: # Dim on timer if meant to be dark only
+            print("Dim timer active")
+            dim_timer.init(period=5000, mode=Timer.ONE_SHOT, callback=lambda t:screen_light(False))
+        else:
+            print(f"heh on {timer} and {photo_pin.value()}")                
     else:
+        print("Dim screen")
         alr_on = False
         lcd.backlight_off()
-        lcd.display_off()
 
 
 def handle_screen(pin):
@@ -128,23 +124,27 @@ def button_irq_handler(pin):
         press_duration = time.ticks_diff(current_time, press_duration)
         alarm_last = current_time  # debounce
 
-        print(alarm_status)
         if alarm_status: # Options if the alarm is ON:
             if press_duration > 1000: # Shut off alarm
                 print("disable alarm")
                 alarm_status = False
+                time_period = alarm_time["period"]
                 alarm_time = None
                 alarm.deinit()
+                alarm_buzzer.duty_u16(0)
+                print()
 
                 halt_loop = True
                 lcd.clear()
                 screen_light(True, timer=True)
                 lcd.putstr("Alarm off!")
                 lcd.move_to(0,1)
-                if alarm_time["period"] == "AM":
+                if time_period == "AM":
                     lcd.putstr("Good morning!")
                 else:
                     lcd.putstr("Good afternoon!")
+
+                clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
 
             else:
                 print("snooze alarm")
@@ -163,17 +163,16 @@ def button_irq_handler(pin):
                 
                 alarm_status = False
                 alarm.deinit()
+                alarm_buzzer.duty_u16(0)
 
                 halt_loop = True
                 lcd.clear()
-                screen_light(True, timer=True)
                 lcd.putstr("Snoozed 5 Min!")
                 lcd.move_to(0,1)
                 lcd.putstr("Zzzzz...")
-                
-                print("halted?")
 
                 clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
+                screen_light(True, timer=True)
 
         else: # options if alarm is OFF
             if press_duration > 1000 and alarm_time: # If hold & alarm set, clear alarm
@@ -181,10 +180,10 @@ def button_irq_handler(pin):
                 alarm_time = None
                 halt_loop = True
                 lcd.clear()
-                screen_light(True, timer=True)
                 lcd.putstr("Cleared alarm")
 
                 clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
+                screen_light(True, timer=True)
 
             elif press_duration < 1000: # Otherwise set or edit alarm, or leave menu
                 print("menu setup")
@@ -265,16 +264,17 @@ minute_btn.irq(trigger=Pin.IRQ_RISING, handler=minute_handler)
 # Bugfix: Don't print text to screen when clock is halted
 def screentext(string: str):
     if not halt_loop:
-        print(f"Adding Text: {string}")
+        #print(f"Adding Text: {string}")
         lcd.putstr(string)
 
 
 def toggle_alarm(timer):
     global alarm_toggle
+    print(alarm_toggle)
     if alarm_toggle:
         alarm_buzzer.duty_u16(500)
     else:
-        alarm_buzzer. duty_u16(0)
+        alarm_buzzer.duty_u16(0)
     alarm_toggle = not alarm_toggle
 
 
@@ -353,7 +353,6 @@ while True:
 
     loop_ran = False
     while halt_loop: # Halt loop when paused
-        print("halted loop")
         time.sleep(0.1)
         loop_ran = True
 
