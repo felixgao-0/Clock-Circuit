@@ -63,25 +63,17 @@ dim_timer = Timer()
 
 def keypad_irq_handler(pin):
     print(f"handler run on {pin}")
-    for col in column_pins:
-        col.irq(handler=None)
-    
-    # Scan the keypad to find the pressed key
-    for row_index, row_pin in enumerate(row_pins):
-        row_pin.high()
-        print(f"row {row_pin}")
-        for col_index, col_pin in enumerate(column_pins):
-            print(col_pin)
-            if col_pin.value() == 1:
-                pressed_key = keys[row_index][col_index]
-        row_pin.low()
 
-    print(pressed_key)
-    print(row_index)
-    print(col_index)
+    for col_pin in column_pins:
+        col_pin.value(0)
+        for i, row_pin in enumerate(row_pins):
+            if not row_pin.value():
+                key_pressed = keys[i][column_pins.index(col_pin)]
+                col_pin.value(1)
+                print(f"key pressed -> {key_pressed}")
+        col_pin.value(1)
 
-    for col in column_pins:
-        col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
+    time.sleep(0.1) # Debounce
 
 # Set up interrupts for each column pin
 for col in column_pins:
