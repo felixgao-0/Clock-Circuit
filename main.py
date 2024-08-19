@@ -12,23 +12,44 @@ from ds1307 import DS1307
 # Credit: https://github.com/T-622/RPI-PICO-I2C-LCD
 from pico_i2c_lcd import I2cLcd
 
+# Drivers for the keypad
+# Credit: https://github.com/PerfecXX/MicroPython-SimpleKeypad
+#from keypad import Keypad
+
 
 time.sleep(0.1) # Wait for USB to become ready
 
 
+# Setup RTC clock
+rtc_clock = I2C(0, scl=Pin(13), sda=Pin(12), freq=800000)
+ds1307 = DS1307(addr=0x68, i2c=rtc_clock)
+
+# Setup the display to print everything to!
+display = I2C(1, scl=Pin(15), sda=Pin(14), freq=800000)
+lcd = I2cLcd(display, 0x27, 2, 16)
+
+
+# Config & random variables
 month_name = ["", "Jan", "Feb", "Mar", "Apr",
               "May", "Jun", "Jul","Aug", "Sept",
               "Oct", "Nov", "Dec"]
 
+# Keypad
+row_pins = [Pin(9, Pin.OUT), Pin(8, Pin.OUT), Pin(7, Pin.OUT), Pin(6, Pin.OUT)]
+column_pins = [Pin(5, Pin.IN, Pin.PULL_UP), Pin(4, Pin.IN, Pin.PULL_UP), Pin(3, Pin.IN, Pin.PULL_UP), Pin(2, Pin.IN, Pin.PULL_UP)]
 
-# Setup RTC clock
-rtc_clock = I2C(0, scl=Pin(9), sda=Pin(8), freq=800000)
-ds1307 = DS1307(addr=0x68, i2c=rtc_clock)
+keys = [
+    ['1', '2', '3', 'A'],
+    ['4', '5', '6', 'B'],
+    ['7', '8', '9', 'C'],
+    ['*', '0', '#', 'D']
+]
 
-# Setup the display to print everything to!
-display = I2C(1, scl=Pin(3), sda=Pin(2), freq=800000)
-lcd = I2cLcd(display, 0x27, 2, 16)
+#keypad = Keypad(row_pins, column_pins, keys)
 
+# Setup the dimming system
+photo_pin = Pin(16, Pin.IN)
+dim_timer = Timer()
 
 # As far as I understand the pi should get accurate
 # time from a time server, from which it will set it
@@ -40,9 +61,35 @@ lcd = I2cLcd(display, 0x27, 2, 16)
 #pi_time[5] = 50
 #ds1307.datetime = tuple(pi_time) # It expects a tuple type lol
 
-# Setup the dimming system
-photo_pin = Pin(16, Pin.IN)
-dim_timer = Timer()
+def keypad_irq_handler(pin):
+    print(f"handler run on {pin}")
+    for col in column_pins:
+        col.irq(handler=None)
+    
+    # Scan the keypad to find the pressed key
+    for row_index, row_pin in enumerate(row_pins):
+        row_pin.high()
+        print(f"row {row_pin}")
+        for col_index, col_pin in enumerate(column_pins):
+            print(col_pin)
+            if col_pin.value() == 1:
+                pressed_key = keys[row_index][col_index]
+        row_pin.low()
+
+    print(pressed_key)
+    print(row_index)
+    print(col_index)
+
+    for col in column_pins:
+        col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
+
+# Set up interrupts for each column pin
+for col in column_pins:
+    print(f"registered {col}")
+    col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
+
+# ^^^ KEYPAD IMPLEMENTATION ^^^
+
 
 alr_on = False
 def screen_light(setting: bool, *, timer: bool = False):
@@ -69,7 +116,7 @@ photo_pin.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=handle_screen)
 
 
 # Setup buttons, buzzer and variables for the alarm
-alarm_buzzer = PWM(Pin(20))
+alarm_buzzer = PWM(Pin(18))
 alarm_buzzer.freq(1000)
 alarm_toggle = False # Determines whether to toggle the sound
 alarm_status = False # Determines whether alarm is on
@@ -94,7 +141,7 @@ alarm_config_mode = False  # Weather the alarm is in setup mode (I.e setting tim
 alarm_time = None          # Stores the time the alarm should activate
 halt_loop = False          # Pause loop when this is `True`
 
-
+"""
 def close_menu(pin):
     global halt_loop
     lcd.clear()
@@ -248,7 +295,7 @@ def minute_handler(pin):
 alarm_btn.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=button_irq_handler)
 hour_btn.irq(trigger=Pin.IRQ_RISING, handler=hour_handler)
 minute_btn.irq(trigger=Pin.IRQ_RISING, handler=minute_handler)
-
+"""
 
 # Bugfix: Don't print text to screen when clock is halted
 def screentext(string: str):
