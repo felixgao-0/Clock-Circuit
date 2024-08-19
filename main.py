@@ -3,8 +3,6 @@ import time
 import _thread
 from machine import I2C, Pin, Timer, PWM
 
-from timing import timeit
-
 # Drivers for the RTC and the display!
 # Credit: https://github.com/mcauser/micropython-tinyrtc-i2c
 from ds1307 import DS1307
@@ -12,10 +10,10 @@ from ds1307 import DS1307
 # Credit: https://github.com/T-622/RPI-PICO-I2C-LCD
 from pico_i2c_lcd import I2cLcd
 
-# Drivers for the keypad
-# Credit: https://github.com/PerfecXX/MicroPython-SimpleKeypad
-#from keypad import Keypad
+# Debugger
+from debug import base_logger
 
+logger = base_logger(level="INFO")
 
 time.sleep(0.1) # Wait for USB to become ready
 
@@ -34,19 +32,6 @@ month_name = ["", "Jan", "Feb", "Mar", "Apr",
               "May", "Jun", "Jul","Aug", "Sept",
               "Oct", "Nov", "Dec"]
 
-# Keypad
-row_pins = [Pin(9, Pin.OUT), Pin(8, Pin.OUT), Pin(7, Pin.OUT), Pin(6, Pin.OUT)]
-column_pins = [Pin(5, Pin.IN, Pin.PULL_UP), Pin(4, Pin.IN, Pin.PULL_UP), Pin(3, Pin.IN, Pin.PULL_UP), Pin(2, Pin.IN, Pin.PULL_UP)]
-
-keys = [
-    ['1', '2', '3', 'A'],
-    ['4', '5', '6', 'B'],
-    ['7', '8', '9', 'C'],
-    ['*', '0', '#', 'D']
-]
-
-#keypad = Keypad(row_pins, column_pins, keys)
-
 # Setup the dimming system
 photo_pin = Pin(16, Pin.IN)
 dim_timer = Timer()
@@ -61,26 +46,105 @@ dim_timer = Timer()
 #pi_time[5] = 50
 #ds1307.datetime = tuple(pi_time) # It expects a tuple type lol
 
-def keypad_irq_handler(pin):
-    print(f"handler run on {pin}")
+# Keypad config
+rows = [9, 8, 7, 6]
+cols = [5, 4, 3, 2]
 
-    for col_pin in column_pins:
-        col_pin.value(0)
-        for i, row_pin in enumerate(row_pins):
-            if not row_pin.value():
-                key_pressed = keys[i][column_pins.index(col_pin)]
-                col_pin.value(1)
-                print(f"key pressed -> {key_pressed}")
-        col_pin.value(1)
+row_pins = [Pin(pin_num, Pin.OUT) for pin_num in rows]
+col_pins = [Pin(pin_num, Pin.IN, Pin.PULL_DOWN) for pin_num in cols]
 
-    time.sleep(0.1) # Debounce
+keypad = [
+    ['1', '2', '3', 'A'],
+    ['4', '5', '6', 'B'],
+    ['7', '8', '9', 'C'],
+    ['*', '0', '#', 'D']
+]
 
-# Set up interrupts for each column pin
-for col in column_pins:
-    print(f"registered {col}")
+def keypad_irq_handler(col_pin):
+    """
+    Key mappings:
+    1-9 : Set alarm time
+    A : Enable + edit / disable alarm config mode
+    B : ** Unused :/ **
+    C : Toggle display light
+    D : Confirm alarm choice (basically enter key)
+
+    # : Change between AM/PM in alarm config mode
+    """
+    global hour_last
+    global alarm_config_mode, alarm_time
+
+    if not col_pin.value(): # If pin is off
+        return
+
+    for col in col_pins: # disable interrupts so prevent repeat calls
+        col.irq(handler=None)
+
+    for row_index, row_pin in enumerate(row_pins):
+        row_pin.low()
+        if not col_pin.value(): # If column turns off with the row, we found it!
+            key_pressed = keypad[row_index][col_pins.index(col_pin)]
+            logger.info(f"'{key_pressed}' was pressed")
+
+        row_pin.high()
+
+    # ^^^ Get button stuff ^^^
+    # Button action code below
+    global button_pressed, press_duration, halt_loop
+    global alarm_status, alarm_time, alarm_last, alarm_config_mode
+    
+    if key_pressed == "A":
+        if alarm_time: # If alarm set, clear alarm
+            alarm_time = None
+            halt_loop = True
+            lcd.clear()
+            lcd.putstr("Cleared alarm")
+
+            clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
+            screen_light(True, timer=True)
+        else: # Otherwise lets get an alarm setup and edited!
+            screen_light(True)
+
+            if not alarm_config_mode:
+                alarm_config_mode = True
+                halt_loop = True
+
+                dt_obj = ds1307.datetime
+
+                lcd.clear()
+                if not alarm_time:
+                    lcd.putstr("Setup alarm:")
+                    alarm_time = {
+                        "hour": int(get_hour(dt_obj, get_period=False)),
+                        "minute": int(dt_obj[4]),
+                        "period": get_hour(dt_obj, get_period=True)
+                    }
+                else:
+                    lcd.putstr("Edit alarm:")
+                
+                lcd.move_to(0,1)
+
+                lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
+            else: # Leave menu, cleanup stuff here and allow script to continue
+                if photo_pin.value() == 1:
+                    screen_light(False)
+                alarm_config_mode = False
+                halt_loop = False
+                lcd.clear()
+
+    for col in col_pins: # Renable interrupt :D
+        col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
+
+
+# Set up row pins and power them
+for row in row_pins:
+    row.high()
+    logger.info(f"set {row} -> {row.value()}")
+
+# Set up column pins and interrupts
+for col in col_pins:
+    logger.info(f"set {col} -> IRQ")
     col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
-
-# ^^^ KEYPAD IMPLEMENTATION ^^^
 
 
 alr_on = False
@@ -133,12 +197,13 @@ alarm_config_mode = False  # Weather the alarm is in setup mode (I.e setting tim
 alarm_time = None          # Stores the time the alarm should activate
 halt_loop = False          # Pause loop when this is `True`
 
-"""
+
 def close_menu(pin):
     global halt_loop
     lcd.clear()
     halt_loop = False
- 
+
+"""
 def button_irq_handler(pin):
     global button_pressed, press_duration, halt_loop
     global alarm_status, alarm_time, alarm_last, alarm_config_mode
@@ -263,30 +328,6 @@ def hour_handler(pin):
         lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
     elif pin.value() == 0: # Brighten screen when not alarm mode just cause
         screen_light(True, timer=True)
-    
-
-def minute_handler(pin):
-    global minute_last
-    global alarm_config_mode, alarm_time
-
-    if time.ticks_diff(time.ticks_ms(), minute_last) < 200: # Debounce
-        return
-
-    if alarm_config_mode:
-        minute_last = time.ticks_ms()
-        if alarm_time["minute"] == 59:
-            alarm_time["minute"] = 0
-        else:
-            alarm_time["minute"] += 1
-        lcd.move_to(0,1)
-        lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-    elif pin.value() == 0: # Brighten screen when not alarm mode just cause
-        screen_light(True, timer=True)
-
-
-alarm_btn.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=button_irq_handler)
-hour_btn.irq(trigger=Pin.IRQ_RISING, handler=hour_handler)
-minute_btn.irq(trigger=Pin.IRQ_RISING, handler=minute_handler)
 """
 
 # Bugfix: Don't print text to screen when clock is halted
