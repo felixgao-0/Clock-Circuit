@@ -13,7 +13,7 @@ from pico_i2c_lcd import I2cLcd
 # Debugger
 from debug import base_logger
 
-logger = base_logger(level="INFO")
+logger = base_logger(level="DEBUG")
 
 time.sleep(0.1) # Wait for USB to become ready
 
@@ -63,16 +63,15 @@ keypad = [
 def keypad_irq_handler(col_pin):
     """
     Key mappings:
-    1-9 : Set alarm time
     A : Enable + edit / disable alarm config mode
-    B : ** Unused :/ **
+    B : Toggle alarm state (ON / OFF)
     C : Toggle display light
     D : Confirm alarm choice (basically enter key)
 
+    1-9 : Set alarm time
+    * : ** Unused :/ **
     # : Change between AM/PM in alarm config mode
     """
-    global hour_last
-    global alarm_config_mode, alarm_time
 
     if not col_pin.value(): # If pin is off
         return
@@ -90,47 +89,46 @@ def keypad_irq_handler(col_pin):
 
     # ^^^ Get button stuff ^^^
     # Button action code below
+
     global button_pressed, press_duration, halt_loop
     global alarm_status, alarm_time, alarm_last, alarm_config_mode
     
     if key_pressed == "A":
-        if alarm_time: # If alarm set, clear alarm
-            alarm_time = None
+        if alarm_status: # Don't do anything if alarm on
+            logger.debug("Ignoring A press as alarm is still on")
+            return
+
+        if not alarm_config_mode: # If we're not in alarm setup mode, enter that mode
+            screen_light(True)
+            lcd.blink_cursor_on() # Blinky thingy look nice
+            lcd.show_cursor() 
+
+            alarm_config_mode = True
             halt_loop = True
             lcd.clear()
-            lcd.putstr("Cleared alarm")
+            if not alarm_time:
+                lcd.putstr("Setup alarm:")
+                alarm_time = {
+                    "hour": int(get_hour(dt_obj, get_period=False)),
+                    "minute": int(dt_obj[4]),
+                    "period": get_hour(dt_obj, get_period=True)
+                }
+            else:
+                lcd.putstr("Edit alarm:")
+        
+            # Add time text
+            lcd.move_to(0,1)
+            lcd.putstr(f"__:__ {alarm_time['period']}")
+            
+        else: # Exit alarm config mode
+            if photo_pin.value() == 1: # If display on, turn it off
+                screen_light(False)
+            lcd.blink_cursor_off() # Blinky thingy look nice
+            lcd.clear_cursor() 
 
-            clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
-            screen_light(True, timer=True)
-        else: # Otherwise lets get an alarm setup and edited!
-            screen_light(True)
-
-            if not alarm_config_mode:
-                alarm_config_mode = True
-                halt_loop = True
-
-                dt_obj = ds1307.datetime
-
-                lcd.clear()
-                if not alarm_time:
-                    lcd.putstr("Setup alarm:")
-                    alarm_time = {
-                        "hour": int(get_hour(dt_obj, get_period=False)),
-                        "minute": int(dt_obj[4]),
-                        "period": get_hour(dt_obj, get_period=True)
-                    }
-                else:
-                    lcd.putstr("Edit alarm:")
-                
-                lcd.move_to(0,1)
-
-                lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-            else: # Leave menu, cleanup stuff here and allow script to continue
-                if photo_pin.value() == 1:
-                    screen_light(False)
-                alarm_config_mode = False
-                halt_loop = False
-                lcd.clear()
+            alarm_config_mode = False
+            halt_loop = False
+            lcd.clear()
 
     for col in col_pins: # Renable interrupt :D
         col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
@@ -333,6 +331,7 @@ def hour_handler(pin):
 # Bugfix: Don't print text to screen when clock is halted
 def screentext(string: str):
     if not halt_loop:
+        logger.debug(f"Printing '{string}' to LCD")
         lcd.putstr(string)
 
 
@@ -398,7 +397,7 @@ while True:
         screentext(get_date(dt_obj))
     
 
-    if dt_obj[4] == 0: # Update hour if minutes at 00
+    if dt_obj[4] == 0 and dt_obj[5] == 0: # Update hour if minutes & seconds at 00
         lcd.move_to(0,1)
         screentext(get_hour(dt_obj, get_period=False))
         lcd.move_to(9,1)
