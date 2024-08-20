@@ -76,12 +76,12 @@ def keypad_handler(key_pressed):
     
     if key_pressed == "A": # If keypad input = 'A'
         if alarm_status: # Don't do anything if alarm on
-            logger.warning("Ignoring A press as alarm is still on")
+            logger.warning("Ignoring A press as alarm is active")
             return
 
         if not alarm_config_mode: # If we're not in alarm setup mode, enter that mode
             screen_light(True)
-            lcd.blink_cursor_off() # Blinky thingy look nice
+            lcd.blink_cursor_on() # Blinky thingy look nice
 
             alarm_config_mode = True
             halt_loop = True
@@ -103,16 +103,6 @@ def keypad_handler(key_pressed):
             lcd.move_to(0,1)
             lcd.putstr("") # Temp not so working bugfix: Above ^ doesn't work sometimes
             logger.info("Alarm Setup Mode - ON")
-            
-        else: # Exit alarm config mode
-            if photo_pin.value() == 1: # If display on, turn it off
-                screen_light(False)
-            lcd.blink_cursor_on() # Disable blinky blinky
-
-            alarm_config_mode = False
-            halt_loop = False
-            lcd.clear()
-            logger.info("Alarm Setup Mode - OFF")
 
     elif key_pressed == "B": # Toggle alarm state, WIP
         ...
@@ -121,7 +111,15 @@ def keypad_handler(key_pressed):
         screen_light(True, timer=True)
 
     elif key_pressed == "D": # Enter key, WIP
-        ...
+        if photo_pin.value() == 1: # If display on, turn it off
+            screen_light(False)
+        
+        lcd.blink_cursor_off() # Disable blinky blinky
+
+        alarm_config_mode = False
+        halt_loop = False
+        lcd.clear()
+        logger.info("Alarm Setup Mode - OFF")
 
     elif key_pressed in [str(i) for i in range(10)]: # If keypad input = number
         if not alarm_config_mode:
@@ -160,7 +158,7 @@ def keypad_handler(key_pressed):
 
 def keypad_irq_handler(col_pin):
     """
-    Run the irq handler, but ensure the setup + cleanup function is always run
+    Run the irq handler, and ensure the setup + cleanup function is always run
     """
     if not col_pin.value(): # If pin is off
         return
@@ -176,7 +174,7 @@ def keypad_irq_handler(col_pin):
 
         row_pin.high()
 
-    keypad_handler(key_pressed)
+    keypad_handler(key_pressed) # Run the core code and handler
 
     logger.debug("Interrupts renabled")
     for col in col_pins: # Renable interrupt :D
@@ -358,24 +356,6 @@ def button_irq_handler(pin):
                     alarm_config_mode = False
                     halt_loop = False
                     lcd.clear()
-
-def hour_handler(pin):
-    global hour_last
-    global alarm_config_mode, alarm_time
-
-    if time.ticks_diff(time.ticks_ms(), hour_last) < 200: # Debounce
-        return
-    if alarm_config_mode:
-        hour_last = time.ticks_ms()
-        if alarm_time["hour"] == 12:
-            alarm_time["hour"] = 1
-            alarm_time["period"] = "AM" if alarm_time["period"] == "PM" else "PM"
-        else:
-            alarm_time["hour"] += 1
-        lcd.move_to(0,1)
-        lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-    elif pin.value() == 0: # Brighten screen when not alarm mode just cause
-        screen_light(True, timer=True)
 """
 
 # Bugfix: Don't print text to screen when clock is halted
@@ -480,6 +460,7 @@ while True:
         lcd.move_to(0,1)
         screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
 
+    # Logic to check if the alarm should go off, like the most important bit lol
     if alarm_time is not None and not alarm_status:
         if f"{alarm_time['hour']:02d}" == get_hour(dt_obj):
             if alarm_time["minute"] == dt_obj[4]: 
