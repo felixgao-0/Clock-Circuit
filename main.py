@@ -59,7 +59,7 @@ keypad = [
     ['*', '0', '#', 'D']
 ]
 
-def keypad_irq_handler(col_pin):
+def keypad_handler(key_pressed):
     """
     Key mappings:
     A : Enable + edit / disable alarm config mode
@@ -71,30 +71,12 @@ def keypad_irq_handler(col_pin):
     * : ** Unused :/ **
     # : Change between AM/PM in alarm config mode
     """
-
-    if not col_pin.value(): # If pin is off
-        return
-
-    for col in col_pins: # disable interrupts so prevent repeat calls
-        col.irq(handler=None)
-
-    for row_index, row_pin in enumerate(row_pins):
-        row_pin.low()
-        if not col_pin.value(): # If column turns off with the row, we found it!
-            key_pressed = keypad[row_index][col_pins.index(col_pin)]
-            logger.info(f"'{key_pressed}' was pressed")
-
-        row_pin.high()
-
-    # ^^^ Get button stuff ^^^
-    # Button action code below
-
     global button_pressed, press_duration, halt_loop
     global alarm_status, alarm_time, alarm_last, alarm_config_mode
     
     if key_pressed == "A": # If keypad input = 'A'
         if alarm_status: # Don't do anything if alarm on
-            logger.debug("Ignoring A press as alarm is still on")
+            logger.warning("Ignoring A press as alarm is still on")
             return
 
         if not alarm_config_mode: # If we're not in alarm setup mode, enter that mode
@@ -133,30 +115,62 @@ def keypad_irq_handler(col_pin):
             logger.info("Alarm Setup Mode - OFF")
 
     elif key_pressed in [str(i) for i in range(10)]: # If keypad input = number
+        logger.debug(f"Check alarm status = {alarm_config_mode}")
         if not alarm_config_mode:
-            logger.debug(f"Ignoring num press as we are not in alarm config mode")
-        
-        if alarm_time["hour"] == "__": # If hour not setup, setup
-            lcd.putstr(key_pressed)
-            alarm_time["hour"] = str(key_pressed) + "_"
+            logger.warning("Ignoring num press as we are not in alarm config mode")
+            return
 
-        elif "_" in alarm_time["hour"]: # See if hour is partially filled
+        if alarm_time["hour"] == "__": # If hour not setup, setup
+            if key_pressed not in [str(i) for i in range(2)]: # Can't have a number > 1 in the start of an hr (I.e 20pm)
+                return
+            lcd.move_to(0,1) # BUGFIX TO THE BUGFIX: Ugh
             lcd.putstr(key_pressed)
-            alarm_time["hour"] = int(alarm_time["hour"][:-1] + str(key_pressed)) # Finish hr, convert to int
+            alarm_time["hour"] = key_pressed + "_"
+
+        elif "_" in str(alarm_time["hour"]): # See if hour is partially filled (bugfix convert to str)
+            if alarm_time["hour"][:-1] == "1" and key_pressed not in [str(i) for i in range(3)]: # Can't have a number > 12 (I.e. 15pm)
+                return
+            lcd.putstr(key_pressed)
+            alarm_time["hour"] = int(alarm_time["hour"][:-1] + key_pressed) # Finish hr, convert to int
             lcd.move_to(3,1) # Move cursor past the colon
 
-        # WIP AHEAD
-        if alarm_time["minute"] == "__": # If minute not setup, setup
+        elif alarm_time["minute"] == "__": # If minute not setup, setup
+            if key_pressed not in [str(i) for i in range(6)]: # Can't have a number > 5 in the start of an hr (I.e 69min)
+                return
             lcd.putstr(key_pressed)
             alarm_time["minute"] = str(key_pressed) + "_"
 
-        elif "_" in alarm_time["minute"]: # See if minute is partially filled
+        elif "_" in str(alarm_time["minute"]): # See if minute is partially filled (bugfix convert to str)
+            # Note to self: :D no data validation needed here :D
             lcd.putstr(key_pressed)
-            alarm_time["minute"] = int(alarm_time["hour"][:-1] + str(key_pressed)) # Finish hr, convert to int
+            alarm_time["minute"] = int(alarm_time["minute"][:-1] + str(key_pressed)) # Finish hr, convert to int
             lcd.move_to(0,1) # Move cursor to start incase user wants to retype
+            # TODO: Do smth so we can retype numbers lol
 
         logger.debug(alarm_time)
 
+
+def keypad_irq_handler(col_pin):
+    """
+    Run the irq handler, but ensure the setup + cleanup function is always run
+    """
+    if not col_pin.value(): # If pin is off
+        return
+
+    for col in col_pins: # disable interrupts so prevent repeat calls
+        col.irq(handler=None)
+
+    for row_index, row_pin in enumerate(row_pins):
+        row_pin.low()
+        if not col_pin.value(): # If column turns off with the row, we found it!
+            key_pressed = keypad[row_index][col_pins.index(col_pin)]
+            logger.info(f"'{key_pressed}' was pressed")
+
+        row_pin.high()
+
+    keypad_handler(key_pressed)
+
+    logger.debug("Interrupts renabled")
     for col in col_pins: # Renable interrupt :D
         col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
 
@@ -164,11 +178,11 @@ def keypad_irq_handler(col_pin):
 # Set up row pins and power them
 for row in row_pins:
     row.high()
-    logger.info(f"set {row} -> {row.value()}")
+    logger.debug(f"set {row} -> {row.value()}")
 
 # Set up column pins and interrupts
 for col in col_pins:
-    logger.info(f"set {col} -> IRQ")
+    logger.debug(f"set {col} -> IRQ")
     col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
 
 
