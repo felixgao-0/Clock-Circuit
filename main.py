@@ -12,7 +12,6 @@ from pico_i2c_lcd import I2cLcd
 
 # Debugger
 from debug import base_logger
-
 logger = base_logger(level="DEBUG")
 
 time.sleep(0.1) # Wait for USB to become ready
@@ -93,7 +92,7 @@ def keypad_irq_handler(col_pin):
     global button_pressed, press_duration, halt_loop
     global alarm_status, alarm_time, alarm_last, alarm_config_mode
     
-    if key_pressed == "A":
+    if key_pressed == "A": # If keypad input = 'A'
         if alarm_status: # Don't do anything if alarm on
             logger.debug("Ignoring A press as alarm is still on")
             return
@@ -101,16 +100,16 @@ def keypad_irq_handler(col_pin):
         if not alarm_config_mode: # If we're not in alarm setup mode, enter that mode
             screen_light(True)
             lcd.blink_cursor_on() # Blinky thingy look nice
-            lcd.show_cursor() 
 
             alarm_config_mode = True
             halt_loop = True
             lcd.clear()
+
             if not alarm_time:
                 lcd.putstr("Setup alarm:")
                 alarm_time = {
-                    "hour": int(get_hour(dt_obj, get_period=False)),
-                    "minute": int(dt_obj[4]),
+                    "hour": "__",
+                    "minute": "__",
                     "period": get_hour(dt_obj, get_period=True)
                 }
             else:
@@ -119,16 +118,44 @@ def keypad_irq_handler(col_pin):
             # Add time text
             lcd.move_to(0,1)
             lcd.putstr(f"__:__ {alarm_time['period']}")
+            lcd.move_to(0,1)
+            lcd.putstr("") # Temp not so working bugfix: Above ^ doesn't work sometimes
+            logger.info("Alarm Setup Mode - ON")
             
         else: # Exit alarm config mode
             if photo_pin.value() == 1: # If display on, turn it off
                 screen_light(False)
-            lcd.blink_cursor_off() # Blinky thingy look nice
-            lcd.clear_cursor() 
+            lcd.blink_cursor_off() # Disable blinky blinky
 
             alarm_config_mode = False
             halt_loop = False
             lcd.clear()
+            logger.info("Alarm Setup Mode - OFF")
+
+    elif key_pressed in [str(i) for i in range(10)]: # If keypad input = number
+        if not alarm_config_mode:
+            logger.debug(f"Ignoring num press as we are not in alarm config mode")
+        
+        if alarm_time["hour"] == "__": # If hour not setup, setup
+            lcd.putstr(key_pressed)
+            alarm_time["hour"] = str(key_pressed) + "_"
+
+        elif "_" in alarm_time["hour"]: # See if hour is partially filled
+            lcd.putstr(key_pressed)
+            alarm_time["hour"] = int(alarm_time["hour"][:-1] + str(key_pressed)) # Finish hr, convert to int
+            lcd.move_to(3,1) # Move cursor past the colon
+
+        # WIP AHEAD
+        if alarm_time["minute"] == "__": # If minute not setup, setup
+            lcd.putstr(key_pressed)
+            alarm_time["minute"] = str(key_pressed) + "_"
+
+        elif "_" in alarm_time["minute"]: # See if minute is partially filled
+            lcd.putstr(key_pressed)
+            alarm_time["minute"] = int(alarm_time["hour"][:-1] + str(key_pressed)) # Finish hr, convert to int
+            lcd.move_to(0,1) # Move cursor to start incase user wants to retype
+
+        logger.debug(alarm_time)
 
     for col in col_pins: # Renable interrupt :D
         col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
