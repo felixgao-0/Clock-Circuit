@@ -22,7 +22,7 @@
     {
       "type": "wokwi-buzzer",
       "id": "bz1",
-      "top": 69.6,
+      "top": 60,
       "left": 241.8,
       "attrs": { "volume": "0.1" }
     },
@@ -44,10 +44,17 @@
     {
       "type": "wokwi-pushbutton",
       "id": "btn1",
-      "top": 76.7,
+      "top": 95.9,
       "left": 320.3,
       "rotate": 90,
       "attrs": { "color": "green" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 71.15,
+      "left": 307.2,
+      "attrs": { "value": "10000" }
     }
   ],
   "connections": [
@@ -73,24 +80,27 @@
     [ "keypad1:R3", "pico:GP7", "green", [ "v0" ] ],
     [ "keypad1:R2", "pico:GP8", "green", [ "v0" ] ],
     [ "keypad1:R1", "pico:GP9", "green", [ "v0" ] ],
-    [ "bb1:bp.20", "bb1:25b.j", "red", [ "v0" ] ],
-    [ "bb1:27b.j", "pico:GP20", "green", [ "v0" ] ],
+    [ "pico:VBUS", "bb1:bp.1", "red", [ "h48.31", "v172.8" ] ],
+    [ "bb1:25b.j", "bb1:bn.20", "black", [ "v0" ] ],
+    [ "bb1:bp.16", "bb1:21t.e", "red", [ "v0" ] ],
+    [ "bb1:27t.a", "pico:GP19", "orange", [ "v-19.2", "h-278.4", "v124.8" ] ],
     [ "rtc1:GND", "bb1:4b.h", "", [ "$bb" ] ],
     [ "rtc1:5V", "bb1:5b.h", "", [ "$bb" ] ],
     [ "rtc1:SDA", "bb1:6b.h", "", [ "$bb" ] ],
     [ "rtc1:SCL", "bb1:7b.h", "", [ "$bb" ] ],
     [ "rtc1:SQW", "bb1:8b.h", "", [ "$bb" ] ],
-    [ "bz1:1", "bb1:17b.i", "", [ "$bb" ] ],
-    [ "bz1:2", "bb1:18b.i", "", [ "$bb" ] ],
     [ "ldr1:VCC", "bb1:61b.h", "", [ "$bb" ] ],
     [ "ldr1:GND", "bb1:60b.h", "", [ "$bb" ] ],
     [ "ldr1:DO", "bb1:59b.h", "", [ "$bb" ] ],
     [ "ldr1:AO", "bb1:58b.h", "", [ "$bb" ] ],
-    [ "btn1:1.l", "bb1:27t.b", "", [ "$bb" ] ],
-    [ "btn1:2.l", "bb1:25t.b", "", [ "$bb" ] ],
-    [ "btn1:1.r", "bb1:27b.g", "", [ "$bb" ] ],
-    [ "btn1:2.r", "bb1:25b.g", "", [ "$bb" ] ],
-    [ "pico:VBUS", "bb1:bp.1", "red", [ "h48.31", "v172.8" ] ]
+    [ "bz1:1", "bb1:17b.h", "", [ "$bb" ] ],
+    [ "bz1:2", "bb1:18b.h", "", [ "$bb" ] ],
+    [ "btn1:1.l", "bb1:27t.d", "", [ "$bb" ] ],
+    [ "btn1:2.l", "bb1:25t.d", "", [ "$bb" ] ],
+    [ "btn1:1.r", "bb1:27b.i", "", [ "$bb" ] ],
+    [ "btn1:2.r", "bb1:25b.i", "", [ "$bb" ] ],
+    [ "r1:1", "bb1:21t.c", "", [ "$bb" ] ],
+    [ "r1:2", "bb1:27t.c", "", [ "$bb" ] ]
   ],
   "dependencies": {}
 }
