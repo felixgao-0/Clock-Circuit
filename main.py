@@ -35,6 +35,9 @@ lcd.custom_char(0, bytearray([
     0x00
 ])) # Alarm active icon
 
+# Get the alarm adk/snooze button
+alarm_button = Pin(19, Pin.IN, Pin.PULL_UP)
+
 # Config & random variables
 month_name = ["", "Jan", "Feb", "Mar", "Apr",
               "May", "Jun", "Jul","Aug", "Sept",
@@ -68,6 +71,34 @@ keypad = [
     ['*', '0', '#', 'D']
 ]
 
+
+# Setup buttons, buzzer and variables for the alarm
+alarm_buzzer = PWM(Pin(18))
+alarm_buzzer.freq(1000)
+alarm_toggle = False # Determines whether to toggle the sound
+alarm_status = False # Determines whether alarm is on
+
+alarm = Timer()
+clear_display = Timer()
+
+# Buttons
+alarm_btn = Pin(21, Pin.IN, Pin.PULL_UP)
+hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
+minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
+
+# Last press time for debounce
+alarm_last = time.ticks_ms()
+hour_last = time.ticks_ms()
+minute_last = time.ticks_ms()
+
+button_pressed = False     # If alarm btn is being pressed
+press_duration = 0         # How long the alarm btn was pressed for
+
+alarm_config_mode = False  # Weather the alarm is in setup mode (I.e setting time)
+alarm_time = None          # Stores the time the alarm should activate
+halt_loop = False          # Pause loop when this is `True`
+menu_stage = "hr_tens"
+
 def keypad_handler(key_pressed):
     """
     Key mappings:
@@ -78,12 +109,13 @@ def keypad_handler(key_pressed):
 
     1-9 : Set alarm time
     * : Change between AM/PM in alarm config mode
-    # :  Confirm alarm choice (basically enter key)
+    # : Confirm alarm choice (basically enter key)
     """
     global button_pressed, halt_loop
     global alarm_status, alarm_time, alarm_config_mode, menu_stage
     
     if key_pressed == "A": # If keypad input = 'A'
+        clear_display.deinit() # BUGFIX: Prevent menu from closing if buttons spammed
         if alarm_status: # Don't do anything if alarm on
             logger.warning("Ignoring A press as alarm is active")
             return
@@ -108,22 +140,28 @@ def keypad_handler(key_pressed):
         
             # Add time text
             lcd.move_to(0,1)
-            lcd.putstr(f"{z_pad(alarm_time['hour'])}:{z_pad(alarm_time['minute'])} {(alarm_time['period']}")
+            lcd.putstr(f"{z_pad(alarm_time['hour'])}:{z_pad(alarm_time['minute'])} {alarm_time['period']}")
             lcd.move_to(0,1)
             lcd.putstr("") # Temp not so working bugfix: Above ^ doesn't work sometimes
             logger.info("Alarm Setup Mode - ON")
+            menu_stage = "hr_tens"
+            
 
-    elif key_pressed == "B": # Toggle alarm state, WIP
+    elif key_pressed == "B": # Clear alarm when set
         if alarm_time:
             alarm_time = None
             halt_loop = True
             lcd.clear()
-            lcd.putstr("Cleared alarm")
+            if alarm_config_mode:
+                alarm_config_mode = False
+                lcd.putstr("Cancelled alarm")
+            else:
+                lcd.putstr("Cleared alarm")
 
             clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
             screen_light(True, timer=True)
 
-    elif key_pressed == "C": # Enable display with C
+    elif key_pressed == "C": # Enable display
         screen_light(True, timer=True)
     
     elif key_pressed == "D": # ** Unused **
@@ -150,12 +188,14 @@ def keypad_handler(key_pressed):
             screen_light(False)
 
         lcd.blink_cursor_off() 
+        lcd.hide_cursor() # BUGFIX: Cursor keeps appearing idk why
         alarm_config_mode = False
         logger.info("Alarm Setup Mode - OFF")
 
-        if "_" in str(alarm_time["hour"]) or "_" in str(alarm_time["minute"]):
+        if "_" in str(alarm_time["hour"]) or "_" in str(alarm_time["minute"]) or alarm_time["hour"] == 0:
             logger.warning("Alarm input is invalid and will be ignored")
             alarm_time = None # Invalidate alarm
+            lcd.clear()
             lcd.putstr("Alarm invalid and not set")
             clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
         else:
@@ -180,6 +220,8 @@ def keypad_handler(key_pressed):
 
         elif menu_stage == "hr_ones": # See if hour is partially filled
             if alarm_time["hour"][:-1] == "1" and key_pressed not in [str(i) for i in range(3)]: # Can't have a number > 12 (I.e. 15pm)
+                return
+            elif alarm_time["hour"][:-1] == "0" and key_pressed == "0": # Can't have 00 as a time
                 return
             lcd.move_to(1,1)
             lcd.putstr(key_pressed)
@@ -245,6 +287,78 @@ for col in col_pins:
     col.irq(trigger=Pin.IRQ_RISING, handler=keypad_irq_handler)
 
 
+def button_irq_handler(pin):
+    global button_pressed, press_duration, halt_loop
+    global alarm_status, alarm_time, alarm_last
+    
+    current_time = time.ticks_ms()
+    
+    # Debounce
+    if time.ticks_diff(current_time, alarm_last) < 50:
+        return
+
+    if pin.value() == 0 and not button_pressed: # When pressed
+        button_pressed = True
+        press_duration = current_time
+        alarm_last = current_time  # debounce
+    elif pin.value() == 1 and button_pressed:   # When let go
+        logger.info("Alarm button pressed")
+        button_pressed = False
+        press_duration = time.ticks_diff(current_time, press_duration)
+        alarm_last = current_time  # debounce
+
+        if not alarm_status:
+            return
+        
+        if press_duration > 1000: # Shut off alarm
+            alarm_status = False
+            time_period = alarm_time["period"]
+            alarm_time = None
+            alarm.deinit()
+            alarm_buzzer.duty_u16(0)
+
+            halt_loop = True
+            lcd.clear()
+            screen_light(True, timer=True)
+            lcd.putstr("Alarm off!")
+            lcd.move_to(0,1)
+            if time_period == "AM":
+                lcd.putstr("Good morning!")
+            else:
+                lcd.putstr("Good afternoon!")
+
+            clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
+
+        else:
+            alarm_time["minute"] += 5 # SNOOZE!
+
+            if alarm_time["minute"] >= 60:
+                alarm_time["hour"] += 1
+                alarm_time["minute"] -= 60
+                
+            if alarm_time["hour"] > 12:
+                alarm_time["hour"] -= 12
+                alarm_time["period"] = "PM" if alarm_time["period"] == "AM" else "AM"
+        
+            elif alarm_time["hour"] == 12:
+                alarm_time["period"] = "PM" if alarm_time["period"] == "AM" else "AM"
+                
+            alarm_status = False
+            alarm.deinit()
+            alarm_buzzer.duty_u16(0)
+
+            halt_loop = True
+            lcd.clear()
+            lcd.putstr("Snoozed 5 Min!")
+            lcd.move_to(0,1)
+            lcd.putstr("Zzzzz...")
+
+            clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
+            screen_light(True, timer=True)
+
+alarm_button.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=button_irq_handler)
+
+
 alr_on = False
 def screen_light(setting: bool, *, timer: bool = False):
     global alr_on
@@ -269,105 +383,12 @@ def handle_screen(pin):
 photo_pin.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=handle_screen)
 
 
-# Setup buttons, buzzer and variables for the alarm
-alarm_buzzer = PWM(Pin(18))
-alarm_buzzer.freq(1000)
-alarm_toggle = False # Determines whether to toggle the sound
-alarm_status = False # Determines whether alarm is on
-
-alarm = Timer()
-clear_display = Timer()
-
-# Buttons
-alarm_btn = Pin(21, Pin.IN, Pin.PULL_UP)
-hour_btn = Pin(26, Pin.IN, Pin.PULL_UP)
-minute_btn = Pin(27, Pin.IN, Pin.PULL_UP)
-
-# Last press time for debounce
-alarm_last = time.ticks_ms()
-hour_last = time.ticks_ms()
-minute_last = time.ticks_ms()
-
-button_pressed = False     # If alarm btn is being pressed
-press_duration = 0         # How long the alarm btn was pressed for
-
-alarm_config_mode = False  # Weather the alarm is in setup mode (I.e setting time)
-alarm_time = None          # Stores the time the alarm should activate
-halt_loop = False          # Pause loop when this is `True`
-menu_stage = "hr_tens"
-
-def button_irq_handler(pin):
-    global button_pressed, press_duration, halt_loop
-    global alarm_status, alarm_time, alarm_last, alarm_config_mode
-    
-    current_time = time.ticks_ms()
-    
-    # Debounce
-    if time.ticks_diff(current_time, alarm_last) < 50:
-        return
-
-    if pin.value() == 0 and not button_pressed: # When pressed
-        button_pressed = True
-        press_duration = current_time
-        alarm_last = current_time  # debounce
-    elif pin.value() == 1 and button_pressed:   # When let go
-        button_pressed = False
-        press_duration = time.ticks_diff(current_time, press_duration)
-        alarm_last = current_time  # debounce
-
-        if alarm_status: # Options if the alarm is ON:
-            if press_duration > 1000: # Shut off alarm
-                alarm_status = False
-                time_period = alarm_time["period"]
-                alarm_time = None
-                alarm.deinit()
-                alarm_buzzer.duty_u16(0)
-
-                halt_loop = True
-                lcd.clear()
-                screen_light(True, timer=True)
-                lcd.putstr("Alarm off!")
-                lcd.move_to(0,1)
-                if time_period == "AM":
-                    lcd.putstr("Good morning!")
-                else:
-                    lcd.putstr("Good afternoon!")
-
-                clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
-
-            else:
-                alarm_time["minute"] += 5 # SNOOZE!
-
-                if alarm_time["minute"] >= 60:
-                    alarm_time["hour"] += 1
-                    alarm_time["minute"] -= 60
-                
-                if alarm_time["hour"] > 12:
-                    alarm_time["hour"] -= 12
-                    alarm_time["period"] = "PM" if alarm_time["period"] == "AM" else "AM"
-        
-                elif alarm_time["hour"] == 12:
-                    alarm_time["period"] = "PM" if alarm_time["period"] == "AM" else "AM"
-                
-                alarm_status = False
-                alarm.deinit()
-                alarm_buzzer.duty_u16(0)
-
-                halt_loop = True
-                lcd.clear()
-                lcd.putstr("Snoozed 5 Min!")
-                lcd.move_to(0,1)
-                lcd.putstr("Zzzzz...")
-
-                clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
-                screen_light(True, timer=True)
-
-
-
 def close_menu(pin=None): # We don't need pin btw
-    global halt_loop
+    global halt_loop, alarm_config_mode
     lcd.clear()
     halt_loop = False
+    if alarm_config_mode: #BUGFIX: Prevent a bug from occuring if the menu is spammed
+        alarm_config_mode = False
 
 
 def z_pad(number): # Zero pad a number
@@ -446,10 +467,6 @@ while True:
     if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
         lcd.move_to(0,0)
         screentext(get_date(dt_obj))
-
-    if alarm_time:
-        lcd.move_to(15,0)
-        screentext(chr(0))
     
 
     if dt_obj[4] == 0 and dt_obj[5] == 0: # Update hour if minutes & seconds at 00
@@ -485,13 +502,22 @@ while True:
         lcd.move_to(0,1)
         screentext(f"{get_hour(dt_obj, get_period=False)}:{dt_obj[4]:02d}:{dt_obj[5]:02d} {get_hour(dt_obj, get_period=True)}")
 
+        if alarm_time: # Add notification symbol
+            lcd.move_to(15,0)
+            screentext(chr(0))
+
     # Logic to check if the alarm should go off, like the most important bit lol
     if alarm_time is not None and not alarm_status:
-        if f"{alarm_time['hour']:02d}" == get_hour(dt_obj):
+        logger.debug(alarm_time)
+        if "_" in str(alarm_time["hour"]) or "_" in str(alarm_time["minute"]): # BUGFIX: Capture and fix a bug which occurs when menus are spammed
+            alarm_time = None
+
+        elif f"{alarm_time['hour']:02d}" == get_hour(dt_obj):
             if alarm_time["minute"] == dt_obj[4]: 
                 if alarm_time["period"] == get_hour(dt_obj, get_period=True):
                     alarm_status = True
                     screen_light(True)
                     alarm.init(mode=Timer.PERIODIC, period=1500, callback=toggle_alarm)
+
         
     time.sleep(0.2)
