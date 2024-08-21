@@ -2,6 +2,8 @@
 
 This is a [Bin](https://hackclub.com/bin/) submission. Thanks [Arcade](https://hackclub.com/arcade/) for all the fun I had!
 
+**[<<< Find the project here >>>](https://wokwi.com/projects/406608282200416257)**
+
 ## How to use:
 
 ![image](https://github.com/user-attachments/assets/2e488cbf-cf41-49da-b877-81f12e1105b4)
@@ -28,6 +30,8 @@ Adjust the photoresistor to simulate darkness. The screen will disable its backl
 The display dims when dark out which I find nice :D. A notification icon will appear (as shown in the image) when an alarm is set. The display shows the current time and date. Time is shown as HH:MM:SS. The date is shown as MM DD, YYYY
 
 ---
+
+**[<<< Find the project here >>>](https://wokwi.com/projects/406608282200416257)**
 
 ## AI Usage:
 Parts of the code were inspired by prompts with ChatGPT. These were then **_heavily_ modified** to sort my use cases and make the code shorter, more concise, and more accurate. ChatGPT provided the ground work for the long press functions as well as the function `only_ones_changed()`, which identifies if only the ones digit in a second changed, to reduce screenwriting and improve simulation performance. AI is awesome lol. Everything else is written entirely by me with the help of documentation and guides.
