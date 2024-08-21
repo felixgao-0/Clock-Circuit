@@ -80,8 +80,8 @@ def keypad_handler(key_pressed):
     * : Change between AM/PM in alarm config mode
     # :  Confirm alarm choice (basically enter key)
     """
-    global button_pressed, press_duration, halt_loop
-    global alarm_status, alarm_time, alarm_last, alarm_config_mode, menu_stage
+    global button_pressed, halt_loop
+    global alarm_status, alarm_time, alarm_config_mode, menu_stage
     
     if key_pressed == "A": # If keypad input = 'A'
         if alarm_status: # Don't do anything if alarm on
@@ -108,7 +108,7 @@ def keypad_handler(key_pressed):
         
             # Add time text
             lcd.move_to(0,1)
-            lcd.putstr(f"{alarm_time['hour']}:{alarm_time['minute']} {alarm_time['period']}")
+            lcd.putstr(f"{z_pad(alarm_time['hour'])}:{z_pad(alarm_time['minute'])} {(alarm_time['period']}")
             lcd.move_to(0,1)
             lcd.putstr("") # Temp not so working bugfix: Above ^ doesn't work sometimes
             logger.info("Alarm Setup Mode - ON")
@@ -137,12 +137,11 @@ def keypad_handler(key_pressed):
         lcd.move_to(6,1)
         if alarm_time["period"] == "AM":
             lcd.putstr("PM")
-            alarm_time["period"] = "PM"
         elif alarm_time["period"] == "PM":
             lcd.putstr("AM")
-            alarm_time["period"] = "AM" 
+        alarm_time["period"] = "PM" if alarm_time["period"] == "AM" else "AM"
 
-    elif key_pressed == "#": # Enter key, WIP
+    elif key_pressed == "#": # Enter key
         if not alarm_config_mode:
             logger.warning("Ignoring # press as we are not in alarm config mode")
             return
@@ -150,15 +149,17 @@ def keypad_handler(key_pressed):
         if photo_pin.value() == 1: # If display on, turn it off
             screen_light(False)
 
+        lcd.blink_cursor_off() 
+        alarm_config_mode = False
+        logger.info("Alarm Setup Mode - OFF")
+
         if "_" in str(alarm_time["hour"]) or "_" in str(alarm_time["minute"]):
             logger.warning("Alarm input is invalid and will be ignored")
-            alarm_time = None # Invalidate alarm, TODO display msg to user abt this
-        
-        lcd.blink_cursor_off() # Disable blinky blinky
-
-        alarm_config_mode = False
-        close_menu()
-        logger.info("Alarm Setup Mode - OFF")
+            alarm_time = None # Invalidate alarm
+            lcd.putstr("Alarm invalid and not set")
+            clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
+        else:
+            close_menu()
 
     elif key_pressed in [str(i) for i in range(10)]: # If keypad input = number
         if not alarm_config_mode:
@@ -295,13 +296,6 @@ alarm_time = None          # Stores the time the alarm should activate
 halt_loop = False          # Pause loop when this is `True`
 menu_stage = "hr_tens"
 
-
-def close_menu(pin=None): # We don't need pin btw
-    global halt_loop
-    lcd.clear()
-    halt_loop = False
-
-"""
 def button_irq_handler(pin):
     global button_pressed, press_duration, halt_loop
     global alarm_status, alarm_time, alarm_last, alarm_config_mode
@@ -368,47 +362,22 @@ def button_irq_handler(pin):
                 clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
                 screen_light(True, timer=True)
 
-        else: # options if alarm is OFF
-            if press_duration > 1000 and alarm_time: # If hold & alarm set, clear alarm
-                alarm_time = None
-                halt_loop = True
-                lcd.clear()
-                lcd.putstr("Cleared alarm")
 
-                clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
-                screen_light(True, timer=True)
 
-            elif press_duration < 1000: # Otherwise set or edit alarm, or leave menu
-                screen_light(True)
+def close_menu(pin=None): # We don't need pin btw
+    global halt_loop
+    lcd.clear()
+    halt_loop = False
 
-                if not alarm_config_mode:
-                    alarm_config_mode = True
-                    halt_loop = True
 
-                    dt_obj = ds1307.datetime
+def z_pad(number): # Zero pad a number
+    num_str = str(number)
+    logger.debug(f"Zero padding {number}")
+    if '_' in num_str:
+        return num_str
+    else:
+        return f"{int(num_str):02d}"
 
-                    lcd.clear()
-                    if not alarm_time:
-                        lcd.putstr("Setup alarm:")
-                        alarm_time = {
-                            "hour": int(get_hour(dt_obj, get_period=False)),
-                            "minute": int(dt_obj[4]),
-                            "period": get_hour(dt_obj, get_period=True)
-                        }
-                    else:
-                        lcd.putstr("Edit alarm:")
-                    
-                    lcd.move_to(0,1)
-
-                    lcd.putstr(f"{alarm_time['hour']:02d}:{alarm_time['minute']:02d} {alarm_time['period']}")
-                else:
-                    if photo_pin.value() == 1:
-                        screen_light(False)
-
-                    alarm_config_mode = False
-                    halt_loop = False
-                    lcd.clear()
-"""
 
 # Bugfix: Don't print text to screen when clock is halted
 def screentext(string: str):
