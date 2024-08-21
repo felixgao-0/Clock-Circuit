@@ -1,6 +1,5 @@
-import time
+import utime as time
 
-import _thread
 from machine import I2C, Pin, Timer, PWM
 
 # Drivers for the RTC and the display!
@@ -25,6 +24,16 @@ ds1307 = DS1307(addr=0x68, i2c=rtc_clock)
 display = I2C(1, scl=Pin(15), sda=Pin(14), freq=800000)
 lcd = I2cLcd(display, 0x27, 2, 16)
 
+lcd.custom_char(0, bytearray([
+    0x04,
+    0x0E,
+    0x0E,
+    0x0E,
+    0x1F,
+    0x00,
+    0x04,
+    0x00
+])) # Alarm active icon
 
 # Config & random variables
 month_name = ["", "Jan", "Feb", "Mar", "Apr",
@@ -63,9 +72,9 @@ def keypad_handler(key_pressed):
     """
     Key mappings:
     A : Enable + edit / disable alarm config mode
-    B : Toggle alarm state (ON / OFF)
+    B : Clear alarm if set
     C : Enable display light
-    D : Confirm alarm choice (basically enter key)
+    D : ** Unused **
 
     1-9 : Set alarm time
     * : Change between AM/PM in alarm config mode
@@ -105,7 +114,14 @@ def keypad_handler(key_pressed):
             logger.info("Alarm Setup Mode - ON")
 
     elif key_pressed == "B": # Toggle alarm state, WIP
-        ...
+        if alarm_time:
+            alarm_time = None
+            halt_loop = True
+            lcd.clear()
+            lcd.putstr("Cleared alarm")
+
+            clear_display.init(mode=Timer.ONE_SHOT, period=1500, callback=close_menu)
+            screen_light(True, timer=True)
 
     elif key_pressed == "C": # Enable display with C
         screen_light(True, timer=True)
@@ -124,17 +140,24 @@ def keypad_handler(key_pressed):
             alarm_time["period"] = "PM"
         elif alarm_time["period"] == "PM":
             lcd.putstr("AM")
-            alarm_time["period"] = "AM"
+            alarm_time["period"] = "AM" 
 
     elif key_pressed == "#": # Enter key, WIP
+        if not alarm_config_mode:
+            logger.warning("Ignoring # press as we are not in alarm config mode")
+            return
+
         if photo_pin.value() == 1: # If display on, turn it off
             screen_light(False)
+
+        if "_" in str(alarm_time["hour"]) or "_" in str(alarm_time["minute"]):
+            logger.warning("Alarm input is invalid and will be ignored")
+            alarm_time = None # Invalidate alarm, TODO display msg to user abt this
         
         lcd.blink_cursor_off() # Disable blinky blinky
 
         alarm_config_mode = False
-        halt_loop = False
-        lcd.clear()
+        close_menu()
         logger.info("Alarm Setup Mode - OFF")
 
     elif key_pressed in [str(i) for i in range(10)]: # If keypad input = number
@@ -147,7 +170,11 @@ def keypad_handler(key_pressed):
                 return
             lcd.move_to(0,1) # BUGFIX TO THE BUGFIX: Ugh
             lcd.putstr(key_pressed)
-            alarm_time["hour"] = key_pressed + "_"
+            if alarm_time["hour"] == "__": # If time is blank
+                alarm_time["hour"] = key_pressed + "_"
+            else:
+                alarm_time["hour"] = key_pressed + (str(alarm_time["hour"]) + "0")[1]
+                logger.debug(f"alarm hr string {str(alarm_time['hour'])}")
             menu_stage = "hr_ones"
 
         elif menu_stage == "hr_ones": # See if hour is partially filled
@@ -164,7 +191,10 @@ def keypad_handler(key_pressed):
                 return
             lcd.move_to(3,1)
             lcd.putstr(key_pressed)
-            alarm_time["minute"] = str(key_pressed) + "_"
+            if alarm_time["minute"] == "__": # If time is blank
+                alarm_time["minute"] = str(key_pressed) + "_"
+            else:
+                alarm_time["minute"] = key_pressed + (str(alarm_time["minute"]) + "0")[1]
             menu_stage = "min_ones"
 
         elif menu_stage == "min_ones": # See if minute is partially filled
@@ -266,7 +296,7 @@ halt_loop = False          # Pause loop when this is `True`
 menu_stage = "hr_tens"
 
 
-def close_menu(pin):
+def close_menu(pin=None): # We don't need pin btw
     global halt_loop
     lcd.clear()
     halt_loop = False
@@ -447,6 +477,10 @@ while True:
     if (dt_obj[3] == 0) and (dt_obj[4] == 0): # Update date if time is 12:00 am
         lcd.move_to(0,0)
         screentext(get_date(dt_obj))
+
+    if alarm_time:
+        lcd.move_to(15,0)
+        screentext(chr(0))
     
 
     if dt_obj[4] == 0 and dt_obj[5] == 0: # Update hour if minutes & seconds at 00
