@@ -68,11 +68,11 @@ def keypad_handler(key_pressed):
     D : Confirm alarm choice (basically enter key)
 
     1-9 : Set alarm time
-    * : ** Unused :/ **
-    # : Change between AM/PM in alarm config mode
+    * : Change between AM/PM in alarm config mode
+    # :  Confirm alarm choice (basically enter key)
     """
     global button_pressed, press_duration, halt_loop
-    global alarm_status, alarm_time, alarm_last, alarm_config_mode, reloop_menu
+    global alarm_status, alarm_time, alarm_last, alarm_config_mode, menu_stage
     
     if key_pressed == "A": # If keypad input = 'A'
         if alarm_status: # Don't do anything if alarm on
@@ -99,7 +99,7 @@ def keypad_handler(key_pressed):
         
             # Add time text
             lcd.move_to(0,1)
-            lcd.putstr(f"__:__ {alarm_time['period']}")
+            lcd.putstr(f"{alarm_time['hour']}:{alarm_time['minute']} {alarm_time['period']}")
             lcd.move_to(0,1)
             lcd.putstr("") # Temp not so working bugfix: Above ^ doesn't work sometimes
             logger.info("Alarm Setup Mode - ON")
@@ -109,8 +109,24 @@ def keypad_handler(key_pressed):
 
     elif key_pressed == "C": # Enable display with C
         screen_light(True, timer=True)
+    
+    elif key_pressed == "D": # ** Unused **
+        ...
 
-    elif key_pressed == "D": # Enter key, WIP
+    elif key_pressed == "*": # Toggle AM/PM
+        if not alarm_config_mode:
+            logger.warning("Ignoring * press as we are not in alarm config mode")
+            return
+
+        lcd.move_to(6,1)
+        if alarm_time["period"] == "AM":
+            lcd.putstr("PM")
+            alarm_time["period"] = "PM"
+        elif alarm_time["period"] == "PM":
+            lcd.putstr("AM")
+            alarm_time["period"] = "AM"
+
+    elif key_pressed == "#": # Enter key, WIP
         if photo_pin.value() == 1: # If display on, turn it off
             screen_light(False)
         
@@ -126,32 +142,38 @@ def keypad_handler(key_pressed):
             logger.warning("Ignoring num press as we are not in alarm config mode")
             return
 
-        if alarm_time["hour"] == "__" or (reloop_menu and isinstance(alarm_time["hour"], int)): # If hour not setup, setup
+        if menu_stage == "hr_tens": # If hour not setup, setup
             if key_pressed not in [str(i) for i in range(2)]: # Can't have a number > 1 in the start of an hr (I.e 20pm)
                 return
             lcd.move_to(0,1) # BUGFIX TO THE BUGFIX: Ugh
             lcd.putstr(key_pressed)
             alarm_time["hour"] = key_pressed + "_"
+            menu_stage = "hr_ones"
 
-        elif "_" in str(alarm_time["hour"]): # See if hour is partially filled (bugfix convert to str)
+        elif menu_stage == "hr_ones": # See if hour is partially filled
             if alarm_time["hour"][:-1] == "1" and key_pressed not in [str(i) for i in range(3)]: # Can't have a number > 12 (I.e. 15pm)
                 return
+            lcd.move_to(1,1)
             lcd.putstr(key_pressed)
             alarm_time["hour"] = int(alarm_time["hour"][:-1] + key_pressed) # Finish hr, convert to int
-            lcd.move_to(3,1) # Move cursor past the colon
+            menu_stage = "min_tens"
+            lcd.move_to(3,1) # Move cursor so it looks nice
 
-        elif alarm_time["minute"] == "__" or (reloop_menu and isinstance(alarm_time["minute"], int)): # If minute not setup, setup
+        elif menu_stage == "min_tens": # If minute not setup, setup
             if key_pressed not in [str(i) for i in range(6)]: # Can't have a number > 5 in the start of an hr (I.e 69min)
                 return
+            lcd.move_to(3,1)
             lcd.putstr(key_pressed)
             alarm_time["minute"] = str(key_pressed) + "_"
+            menu_stage = "min_ones"
 
-        elif "_" in str(alarm_time["minute"]): # See if minute is partially filled (bugfix convert to str)
+        elif menu_stage == "min_ones": # See if minute is partially filled
             # Note to self: :D no data validation needed here :D
+            lcd.move_to(4,1)
             lcd.putstr(key_pressed)
             alarm_time["minute"] = int(alarm_time["minute"][:-1] + str(key_pressed)) # Finish hr, convert to int
-            lcd.move_to(0,1) # Move cursor to start incase user wants to retype
-            reloop_menu = True
+            menu_stage = "hr_tens"
+            lcd.move_to(0,1) # Move cursor so it looks nice
 
         logger.debug(alarm_time)
 
@@ -241,7 +263,7 @@ press_duration = 0         # How long the alarm btn was pressed for
 alarm_config_mode = False  # Weather the alarm is in setup mode (I.e setting time)
 alarm_time = None          # Stores the time the alarm should activate
 halt_loop = False          # Pause loop when this is `True`
-reloop_menu = False
+menu_stage = "hr_tens"
 
 
 def close_menu(pin):
